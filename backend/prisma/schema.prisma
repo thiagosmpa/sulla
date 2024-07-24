@@ -1,0 +1,55 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+}
+
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Group {
+  groupId           String   @id @default(uuid())
+  name              String
+  guidelines        String
+  createdAt         DateTime @default(now())
+  professionals     Professional[]
+  clients           Client[]
+}
+
+model Professional {
+  ProfessionalId    String   @id @unique @default(uuid())
+  name              String
+  guidelines        String
+  dbConnection      String
+  createdAt         DateTime @default(now())
+  groupId           String
+  group             Group    @relation(fields: [groupId], references: [groupId])
+}
+
+model Client {
+  clientId          String   @id @default(uuid())
+  name              String
+  conversationHistory Json
+  updatedAt         DateTime @updatedAt
+  groupId           String
+  group             Group    @relation(fields: [groupId], references: [groupId])
+}
+
+model Users {
+  userId            String   @id @unique @default(uuid())
+  name              String   @unique
+  instructions      String
+  agenda            String
+  createdAt         DateTime @default(now())
+  chats             Chats[]
+}
+
+model Chats {
+  chatId            String  @unique
+  history           Json    @default("[]")
+  updatedAt         DateTime @updatedAt
+  userId            String
+  user              Users   @relation(fields: [userId], references: [userId])
+}
