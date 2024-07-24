@@ -1,0 +1,5 @@
+# Ignorar arquivos .env nas pastas especificadas
+whatsapp/.env
+chatgpt/.env
+backend/.env
+frontend/.env

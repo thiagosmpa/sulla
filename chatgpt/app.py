@@ -4,8 +4,10 @@ from agent import Chatgpt
 import json
 from dotenv import load_dotenv
 from kafka_connection import produceResponse, logging
+import os
 
 load_dotenv()
+print('OPEN AI KEY:', os.getenv('API_KEY'))
 
 # Configurações do Kafka
 consumer_config = {

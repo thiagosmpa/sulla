@@ -3,8 +3,8 @@ from .tools import tools, run_tools
 from typing import List
 from .instructions import instructions
 import os
-# API_KEY = os.getenv("API_KEY")
-API_KEY = 'sk-proj-H2NcMhUdcPPv92rvoO5GT3BlbkFJ7NO6NFBiIpeEj85ajFPE'
+API_KEY = os.getenv("API_KEY")
+print(f'API KEY: {API_KEY}')
 
 class Chatgpt():
     def __init__(self):
