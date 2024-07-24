@@ -1,2 +1,3 @@
 # sulla
-Whatsapp bot
+
+FIRST COMMIT, SO, NOT A DECENT README FILE YET. SORRY 😢
