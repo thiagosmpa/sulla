@@ -20,7 +20,7 @@ RUN echo "frontend" >> .git/info/sparse-checkout
 RUN git pull origin main
 
 # Navegue para o diretório desejado
-WORKDIR /app/frontend
+WORKDIR /app/sulla/frontend
 
 # Copie e instale as dependências
 RUN npm install
