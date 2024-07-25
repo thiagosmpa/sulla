@@ -8,23 +8,57 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.messageQueue = exports.producer = void 0;
+exports.connectProducer = exports.producer = void 0;
+exports.messageProducer = messageProducer;
+exports.agentRequestProducer = agentRequestProducer;
+exports.logging = logging;
 const kafkajs_1 = require("kafkajs");
-const kafkaBroker = process.env.KAFKA_BROKER || 'localhost:9092';
+const moment_1 = __importDefault(require("moment"));
+const kafkaBroker = process.env.KAFKA_BROKER || "localhost:9092";
 const kafka = new kafkajs_1.Kafka({
-    clientId: 'whatsapp-producer',
-    brokers: [kafkaBroker]
+    clientId: "whatsapp-producer",
+    brokers: [kafkaBroker],
 });
 exports.producer = kafka.producer();
-// Buffer para armazenar mensagens
 const messageBuffer = {};
-function messageQueue(chatId, messageContent) {
+function sendToKafka(sessionName, chatId, messageContent) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield exports.producer.send({
+            topic: "whatsapp-messages",
+            messages: [
+                {
+                    key: chatId,
+                    value: JSON.stringify({ sessionName, chatId, messageContent }),
+                },
+            ],
+        });
+    });
+}
+const connectProducer = () => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        yield exports.producer.connect();
+        logging("Kafka Producer connected");
+    }
+    catch (error) {
+        logging(`Error connecting to Kafka Producer: ${error}`);
+    }
+    process.on("SIGINT", () => __awaiter(void 0, void 0, void 0, function* () {
+        yield exports.producer.disconnect();
+        logging("\nKafka Producer disconnected\n");
+        process.exit();
+    }));
+});
+exports.connectProducer = connectProducer;
+function messageProducer(sessionName, chatId, messageContent) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!messageBuffer[chatId]) {
             messageBuffer[chatId] = {
                 messages: [],
-                timer: null
+                timer: null,
             };
         }
         messageBuffer[chatId].messages.push(messageContent);
@@ -32,31 +66,45 @@ function messageQueue(chatId, messageContent) {
             clearTimeout(messageBuffer[chatId].timer);
         }
         messageBuffer[chatId].timer = setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-            const combinedMessage = messageBuffer[chatId].messages.join('\n');
-            yield sendToKafka(chatId, combinedMessage);
+            const combinedMessage = messageBuffer[chatId].messages.join("\n");
+            yield sendToKafka(sessionName, chatId, combinedMessage);
             messageBuffer[chatId].messages = [];
             messageBuffer[chatId].timer = null;
-        }), 20000); // 20 segundos de intervalo
+        }), 15000); // 15 segundos de intervalo
     });
 }
-exports.messageQueue = messageQueue;
-function sendToKafka(chatId, messageContent) {
+function agentRequestProducer(sessionName, chatId, message, history, instructions) {
     return __awaiter(this, void 0, void 0, function* () {
+        try {
+            logging(`Producing message to agent: ${message}`);
+            yield exports.producer.send({
+                topic: "agent-request",
+                messages: [
+                    {
+                        value: JSON.stringify({
+                            sessionName,
+                            chatId,
+                            history,
+                            instructions,
+                            message,
+                        }),
+                    },
+                ],
+            });
+        }
+        catch (error) {
+            logging(`Error producing message to agent: ${error}`);
+        }
+    });
+}
+function logging(log) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const now = (0, moment_1.default)().format("YYYY-MM-DD HH:mm:ss");
+        console.log(`\n${now}:${log}\n`);
+        const logMessage = `${now}: ${log}`;
         yield exports.producer.send({
-            topic: 'whatsapp-messages',
-            messages: [
-                { key: chatId, value: JSON.stringify({ chatId, messageContent }) }
-            ]
+            topic: "logs",
+            messages: [{ value: JSON.stringify({ Whatsapp: logMessage }) }],
         });
     });
 }
-// Manter a conexão ativa
-(() => __awaiter(void 0, void 0, void 0, function* () {
-    yield exports.producer.connect();
-    console.log('\n\nKafka Producer connected\n\n');
-    process.on('SIGINT', () => __awaiter(void 0, void 0, void 0, function* () {
-        yield exports.producer.disconnect();
-        console.log('\n\nKafka Producer disconnected\n\n');
-        process.exit();
-    }));
-}))();

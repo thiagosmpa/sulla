@@ -8,21 +8,20 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.connect = void 0;
-const socket_io_client_1 = __importDefault(require("socket.io-client"));
+const producer_1 = require("../../kafka/producer");
+const producer_2 = require("../../kafka/producer");
 const connect = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.body;
-    const socket = (0, socket_io_client_1.default)(process.env.WHATSAPP_SERVER_URL || 'http://localhost:3002/');
-    socket.emit('stabilish_connection', {
-        'id': id
-    });
-    socket.on('connection_stabilished', (data) => {
-        console.log(data);
-    });
-    res.status(200).send('Conectado');
+    try {
+        yield (0, producer_1.sendMessage)('whatsapp-connection', [{ key: id, value: JSON.stringify({ id }) }]);
+        (0, producer_2.logging)(`Connection request: ${id}`);
+        res.status(200).send('Conectado');
+    }
+    catch (error) {
+        (0, producer_2.logging)(`Error connecting: ${id}: ${error}`);
+        res.status(500).send('Erro ao conectar');
+    }
 });
 exports.connect = connect;

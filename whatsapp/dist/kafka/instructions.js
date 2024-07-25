@@ -12,20 +12,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const whatsapp_1 = __importDefault(require("./routes/whatsapp"));
-const producer_1 = require("./kafka/producer");
-const consumer_1 = require("./kafka/consumer");
-const app = (0, express_1.default)();
-app.use(express_1.default.json());
-app.use(express_1.default.urlencoded({ extended: true }));
-app.get('/', (req, res) => {
-    res.send('Hello World!');
-});
-(() => __awaiter(void 0, void 0, void 0, function* () {
-    yield (0, producer_1.connectProducer)();
-    yield (0, consumer_1.connectConsumer)();
-    yield (0, consumer_1.startConsumer)();
-}))();
-app.use('/api', whatsapp_1.default);
-exports.default = app;
+exports.getInstructions = getInstructions;
+const producer_1 = require("./producer");
+const db_1 = __importDefault(require("../db"));
+function getInstructions(userId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const user = yield db_1.default.users.findUnique({
+                where: {
+                    userId: userId,
+                },
+                select: {
+                    instructions: true,
+                },
+            });
+            return user === null || user === void 0 ? void 0 : user.instructions;
+        }
+        catch (error) {
+            console.error(error);
+            (0, producer_1.logging)("Error getting instructions");
+        }
+    });
+}

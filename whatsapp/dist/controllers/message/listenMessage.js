@@ -12,65 +12,73 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listenMessage = void 0;
+exports.listenMessage = listenMessage;
 const producer_1 = require("../../kafka/producer");
-const consumer_1 = require("../../kafka/consumer");
 const client_1 = __importDefault(require("../../redis/client"));
-if (typeof global.kafkaConsumerStarted === 'undefined') {
-    global.kafkaConsumerStarted = false;
+const producer_2 = require("../../kafka/producer");
+if (!global.sockInstance) {
+    global.sockInstance = undefined;
 }
-function listenMessage(sock) {
+const sessions = new Map();
+function listenMessage(sock, sessionName) {
     return __awaiter(this, void 0, void 0, function* () {
-        sock.ev.on('messages.upsert', (m) => __awaiter(this, void 0, void 0, function* () {
-            const message = m.messages[0];
-            const messageType = getMessageType(message);
-            const chatId = message.key.remoteJid;
-            console.log(`\n\nmessageType: ${messageType}\n\n`);
-            // Verificar no Redis se a mensagem foi enviada pelo bot
-            const sender = yield client_1.default.get(chatId);
-            if (sender !== 'bot' && isTextMessage(messageType)) {
+        sessions.set("sessionName", sessionName);
+        if (!global.sockInstance) {
+            global.sockInstance = sock;
+            sock.ev.on("messages.upsert", (m) => __awaiter(this, void 0, void 0, function* () {
+                const message = m.messages[0];
+                const messageType = getMessageType(message);
+                const chatId = message.key.remoteJid;
+                // Verificar no Redis se a mensagem foi enviada pelo bot
+                const sender = yield client_1.default.get(chatId);
                 const textContent = getTextContent(message, messageType);
-                console.log(`\n\nMessage content: ${textContent}\n\n`);
-                // Enviar mensagem ao Kafka
-                try {
-                    yield (0, producer_1.messageQueue)(chatId, textContent);
-                    console.log(`\n\nMessage sent to Kafka\n\n`);
+                // Filtra as mensagens
+                if (sender !== "bot" && isTextMessage(messageType)) {
+                    // Enviar mensagem ao Kafka
+                    try {
+                        yield (0, producer_1.messageProducer)(sessionName, chatId, textContent);
+                        (0, producer_2.logging)(`Producer: ${sessionName}/${chatId}: ${textContent}`);
+                    }
+                    catch (error) {
+                        (0, producer_2.logging)(`Producer error: ${error}`);
+                    }
                 }
-                catch (error) {
-                    console.error(`\n\nError sending message to Kafka: ${error}\n\n`);
+                else if (sender === "bot") {
+                    (0, producer_2.logging)(`Producer (ignored by bot): ${sessionName}/${chatId}: ${textContent}`);
+                    yield client_1.default.set(chatId, "", { EX: 60 });
                 }
-            }
-            else {
-                console.log(`\n\nMessage from ${chatId} ignored (sent by bot)\n\n`);
-            }
-            if (isTextMessage(messageType) && !isGroupMessage(message) && sender !== 'bot') {
-                console.log(`\n\nReceived new message from ${chatId}\n\n`);
-            }
-        }));
-        // Iniciar o consumidor Kafka para enviar respostas
-        if (!global.kafkaConsumerStarted) {
-            yield (0, consumer_1.startConsumer)(sock);
-            global.kafkaConsumerStarted = true;
+                else {
+                    (0, producer_2.logging)(`Producer (ignored): ${sessionName}/${chatId}: ${textContent}`);
+                }
+            }));
         }
     });
 }
-exports.listenMessage = listenMessage;
 function getMessageType(message) {
     return Object.keys(message.message || {})[0];
 }
 function isGroupMessage(message) {
     var _a;
-    return (_a = message.key.remoteJid) === null || _a === void 0 ? void 0 : _a.includes('@g.us');
+    return (_a = message.key.remoteJid) === null || _a === void 0 ? void 0 : _a.includes("@g.us");
 }
 function isTextMessage(messageType) {
-    return messageType === 'conversation' || messageType === 'extendedTextMessage';
+    return (messageType === "conversation" || messageType === "extendedTextMessage");
+}
+function isSenderKey(messageType) {
+    return messageType === "senderKeyDistributionMessage";
+}
+function canListen(message) {
+    return (message.key.fromMe ||
+        message.key.remoteJid === "553597475292-1556895408@g.us" ||
+        message.key.remoteJid === "553591136988@s.whatsapp.net" ||
+        message.key.remoteJid === "553591331792@s.whatsapp.net");
 }
 function getTextContent(message, messageType) {
-    if (messageType === 'conversation') {
+    if (messageType === "conversation") {
         return message.message.conversation;
     }
-    else if (messageType === 'extendedTextMessage') {
+    else if (messageType === "extendedTextMessage") {
         return message.message.extendedTextMessage.text;
     }
-    return '';
+    return "";
 }

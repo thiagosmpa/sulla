@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const user_1 = require("../controllers/user");
 const router = (0, express_1.Router)();
-router.get('/users/get-users', user_1.getAllUsers);
+router.get('/users/list-user', user_1.listUsers);
 router.post('/users/current-user', user_1.getCurrentUser);
 router.post('/users/delete-user', user_1.deleteUser);
 router.post('/users/update-user', user_1.updateUser);

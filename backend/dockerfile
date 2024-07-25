@@ -17,11 +17,13 @@ RUN git checkout
 WORKDIR /app/sulla/backend
 
 # Copie e instale as dependências
-COPY package*.json ./
 RUN npm install
 
 # Execute as migrações
 RUN npm run migrate
+
+# Execute o build da aplicação
+RUN npm run build
 
 # Exponha a porta 3001
 EXPOSE 3001

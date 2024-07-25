@@ -12,7 +12,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createController = exports.getAllUsers = exports.updateUser = exports.deleteUser = exports.getCurrentUser = void 0;
+exports.listUsers = exports.updateUser = exports.deleteUser = exports.getCurrentUser = void 0;
+exports.createController = createController;
 const db_1 = __importDefault(require("../db"));
 const getCurrentUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.body;
@@ -88,7 +89,7 @@ const updateUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.updateUser = updateUser;
-const getAllUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const listUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const users = yield db_1.default.users.findMany();
         res.status(200).json({
@@ -106,7 +107,7 @@ const getAllUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
         });
     }
 });
-exports.getAllUsers = getAllUsers;
+exports.listUsers = listUsers;
 function createController(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         const { id, name, agenda, instructions } = req.body;
@@ -144,4 +145,3 @@ function createController(req, res) {
         }
     });
 }
-exports.createController = createController;

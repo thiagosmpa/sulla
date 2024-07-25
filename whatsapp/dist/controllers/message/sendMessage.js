@@ -1,30 +1,22 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendMessage = void 0;
-const baileys_1 = require("@whiskeysockets/baileys");
-const targetId = '553597475292-1556895408@g.us';
-const messageContent = { text: 'Test message' };
-const sendMessage = (sock) => __awaiter(void 0, void 0, void 0, function* () {
+const producer_1 = require("../../kafka/producer");
+const client_1 = __importDefault(require("../../redis/client"));
+const sendMessage = (chatId, message) => {
+    if (!global.sockInstance) {
+        throw new Error("Sock instance not set");
+    }
     try {
-        yield sock.presenceSubscribe(targetId);
-        yield (0, baileys_1.delay)(500);
-        yield sock.sendPresenceUpdate('composing', targetId);
-        yield (0, baileys_1.delay)(2000);
-        yield sock.sendPresenceUpdate('paused', targetId);
-        const sentMessage = yield sock.sendMessage(targetId, messageContent);
-        // console.log('Message sent successfully:', sentMessage)
+        global.sockInstance.sendMessage(chatId, message);
+        client_1.default.set(chatId, "bot", { EX: 60 }); // reset redis key
+        (0, producer_1.logging)(`Message sent`);
     }
     catch (error) {
-        console.error('Failed to send message:', error);
+        (0, producer_1.logging)(`Error sending message: ${error}`);
     }
-});
+};
 exports.sendMessage = sendMessage;

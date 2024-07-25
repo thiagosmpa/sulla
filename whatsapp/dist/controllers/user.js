@@ -12,7 +12,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createController = exports.getCurrentUser = void 0;
+exports.getCurrentUser = void 0;
+exports.createController = createController;
 const db_1 = __importDefault(require("../db"));
 const getCurrentUser = (req, res) => {
     res.status(200).json({
@@ -66,4 +67,3 @@ function createController(req, res) {
         }
     });
 }
-exports.createController = createController;
