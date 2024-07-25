@@ -23,7 +23,6 @@ RUN git pull origin main
 WORKDIR /usr/src/app/whatsapp
 
 # Copie e instale as dependências
-COPY package*.json ./
 RUN npm install
 
 # Execute o build da aplicação

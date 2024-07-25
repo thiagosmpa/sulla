@@ -23,7 +23,6 @@ RUN git pull origin main
 WORKDIR /app/backend
 
 # Copie e instale as dependências
-COPY package*.json ./
 RUN npm install
 
 # Execute as migrações
