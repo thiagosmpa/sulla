@@ -19,6 +19,9 @@ WORKDIR /usr/src/app/sulla/whatsapp
 # Copie e instale as dependências
 RUN npm install
 
+# Defina a variável de ambiente DATABASE_URL
+ENV DATABASE_URL=postgresql://thiagomachado:99747-Thi@db:5432/thiagomachado
+
 # Execute as migrações
 RUN npm run migrate
 
