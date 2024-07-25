@@ -6,23 +6,18 @@ WORKDIR /app
 # Instale o Git
 RUN apt-get update && apt-get install -y git
 
-# Inicialize um novo repositório Git
-RUN git init
-
-# Adicione o repositório remoto
-RUN git remote add -f origin https://github.com/thiagosmpa/sulla.git
-
-# Habilite o sparse-checkout e defina a pasta desejada
-RUN git config core.sparseCheckout true
-RUN echo "frontend" >> .git/info/sparse-checkout
-
-# Faça o checkout do repositório
-RUN git pull origin main
+# Clone o repositório com sparse-checkout para a pasta frontend
+RUN git clone --no-checkout https://github.com/thiagosmpa/sulla.git /app/sulla
+WORKDIR /app/sulla
+RUN git sparse-checkout init --cone
+RUN git sparse-checkout set frontend
+RUN git checkout
 
 # Navegue para o diretório desejado
-WORKDIR /sulla/frontend
+WORKDIR /app/sulla/frontend
 
 # Copie e instale as dependências
+COPY package*.json ./
 RUN npm install
 
 # Execute o build da aplicação
