@@ -5,3 +5,4 @@ whatsapp/node_modules
 chatgpt/.env
 backend/node_modules
 frontend/node_modules
+docker-compose.yml
