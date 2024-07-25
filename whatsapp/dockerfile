@@ -20,7 +20,7 @@ RUN echo "whatsapp" >> .git/info/sparse-checkout
 RUN git pull origin main
 
 # Navegue para o diretório desejado
-WORKDIR /app/sulla/whatsapp
+WORKDIR /sulla/whatsapp
 
 # Copie e instale as dependências
 RUN npm install

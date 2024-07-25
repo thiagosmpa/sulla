@@ -21,7 +21,7 @@ RUN echo "chatgpt" >> .git/info/sparse-checkout
 RUN git pull origin main
 
 # Navegue para o diretório desejado
-WORKDIR /app/sula/chatgpt
+WORKDIR /sula/chatgpt
 
 # Instale as dependências listadas em requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
