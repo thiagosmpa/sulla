@@ -23,9 +23,6 @@ RUN git pull origin main
 # Navegue para o diretório desejado
 WORKDIR /app/chatgpt
 
-# Copie o arquivo requirements.txt para o diretório de trabalho
-COPY requirements.txt .
-
 # Instale as dependências listadas em requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
