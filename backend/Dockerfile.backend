@@ -1,0 +1,36 @@
+FROM node:20
+
+# Defina o diretório de trabalho
+WORKDIR /app
+
+# Instale o Git e Chromium
+RUN apt-get update && apt-get install -y git chromium
+
+# Inicialize um novo repositório Git
+RUN git init
+
+# Adicione o repositório remoto
+RUN git remote add -f origin https://github.com/thiagosmpa/sulla.git
+
+# Habilite o sparse-checkout e defina a pasta desejada
+RUN git config core.sparseCheckout true
+RUN echo "backend" >> .git/info/sparse-checkout
+
+# Faça o checkout do repositório
+RUN git pull origin main
+
+# Navegue para o diretório desejado
+WORKDIR /app/backend
+
+# Copie e instale as dependências
+COPY package*.json ./
+RUN npm install
+
+# Execute as migrações
+RUN npm run migrate
+
+# Exponha a porta 3001
+EXPOSE 3001
+
+# Comando para iniciar a aplicação
+CMD ["npm", "start"]
