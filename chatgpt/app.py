@@ -7,7 +7,7 @@ from kafka_connection import produceResponse, logging
 import os
 
 load_dotenv()
-print('OPEN AI KEY:', os.getenv('API_KEY'))
+API_KEY =  os.getenv('API_KEY')
 
 # Configurações do Kafka
 consumer_config = {

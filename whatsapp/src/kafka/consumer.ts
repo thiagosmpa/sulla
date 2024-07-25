@@ -1,11 +1,10 @@
 import { Kafka } from "kafkajs";
-import redisClient from "../redis/client";
 import { sendMessage } from "../controllers/message/sendMessage";
-import { connectSession } from "../controllers/whatsapp";
+import { checkConnection, connectSession } from "../controllers/whatsapp";
 import { agentRequestProducer, logging } from "./producer";
 import { getChatHistory, updateChatHistory } from "./chatHistory";
 import { getInstructions } from "./instructions";
-import axios from "axios";
+import redisClient from "../redis/client";
 
 const agentURL = process.env.agentURL || "http://localhost:18070";
 const kafkaBroker = process.env.KAFKA_BROKER || "localhost:9092";
@@ -56,9 +55,9 @@ function processAgentResponse(data: any) {
   const history = agentResponse.history;
   const sessionName = agentResponse.sessionName;
   const chatId = agentResponse.chatId;
-  
-  logging(`Consuming Agent Response: ${sessionName}/${chatId}:${agentMessage}`);
 
+  logging(`Consuming Agent Response: ${sessionName}/${chatId}:${agentMessage}`);
+  getChatHistory(sessionName, chatId);
   updateChatHistory(chatId, history);
   logging(`Agent Response: ${agentMessage}`);
   logging(`Updated History: ${history}`);
@@ -66,10 +65,9 @@ function processAgentResponse(data: any) {
   sendMessage(chatId, { text: agentMessage });
 }
 
-function processConnection(message: any) {
+async function processConnection(message: any) {
   const sessionMessage = JSON.parse(message.value.toString());
   const sessionName = sessionMessage.id;
-  logging(`Consuming Session Name: ${sessionName}`);
   connectSession(sessionName);
 }
 
@@ -97,6 +95,12 @@ async function startConsumer(): Promise<void> {
           if (topic === "whatsapp-messages") {
             processMessage(message, topic, partition);
           } else if (topic === "whatsapp-connection") {
+            if ((await redisClient.get(message.value.toString())) === "sent") {
+              logging(`Session ${message.value.toString()} already sent`);
+              return;
+            }
+            await redisClient.set(message.value.toString(), "sent", { EX: 20 });
+            logging(`Connecting to Session Name: ${message.value.toString()}`);
             processConnection(message);
           } else if (topic === "agent-response") {
             processAgentResponse(message);

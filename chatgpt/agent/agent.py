@@ -3,6 +3,9 @@ from .tools import tools, run_tools
 from typing import List
 from .instructions import instructions
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 API_KEY = os.getenv("API_KEY")
 print(f'API KEY: {API_KEY}')
 

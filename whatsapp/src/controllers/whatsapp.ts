@@ -1,54 +1,60 @@
-import { Request, Response } from 'express';
-import { listenMessage } from './message/listenMessage';
-import NodeCache from 'node-cache';
-import readline from 'readline';
-import makeWASocket, { fetchLatestBaileysVersion, makeCacheableSignalKeyStore, makeInMemoryStore, useMultiFileAuthState } from '@whiskeysockets/baileys';
-import MAIN_LOGGER from '../utils/logger';
-import { logging } from '../kafka/producer';
-
-const targetId = '553597475292-1556895408@g.us';
+import { listenMessage } from "./message/listenMessage";
+import NodeCache from "node-cache";
+import readline from "readline";
+import makeWASocket, {
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
+  makeInMemoryStore,
+  useMultiFileAuthState,
+} from "@whiskeysockets/baileys";
+import MAIN_LOGGER from "../utils/logger";
+import { logging } from "../kafka/producer";
 
 const logger = MAIN_LOGGER.child({});
-logger.level = 'trace';
+logger.level = "trace";
 
-const useStore = !process.argv.includes('--no-store');
-const usePairingCode = process.argv.includes('--use-pairing-code');
-const useMobile = process.argv.includes('--mobile');
+const useStore = !process.argv.includes("--no-store");
+const usePairingCode = process.argv.includes("--use-pairing-code");
+const useMobile = process.argv.includes("--mobile");
 
 const msgRetryCounterCache = new NodeCache();
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
-const question = (text: string) => new Promise<string>((resolve) => rl.question(text, resolve));
+const question = (text: string) =>
+  new Promise<string>((resolve) => rl.question(text, resolve));
 const store = useStore ? makeInMemoryStore({ logger }) : undefined;
 
 const sessions: Map<string, any> = new Map();
 
 const initializeStore = (sessionName: string) => {
   if (store) {
-    store.readFromFile(`./${sessionName}_baileys_store_multi.json`);
+    store.readFromFile(`./auth/${sessionName}_baileys_store_multi.json`);
     setInterval(() => {
-      store.writeToFile(`./${sessionName}_baileys_store_multi.json`);
+      store.writeToFile(`./auth/${sessionName}_baileys_store_multi.json`);
     }, 10000);
   }
 };
 
 const reconnect = async (sessionName: string, saveCreds: any) => {
   const sock = sessions.get(sessionName);
-  sock.ev.on('connection.update', async (update: any) => {
+  sock.ev.on("connection.update", async (update: any) => {
     const { connection, lastDisconnect } = update;
-    if (connection === 'close') {
+    if (connection === "close") {
       if (lastDisconnect?.error?.output?.statusCode !== 401) {
         await connect(sessionName);
       } else {
-        logging('Logout due to 401 error');
+        logging("Logout due to 401 error");
       }
-    } else if (connection === 'open') {
-      logging('Reconnected to WhatsApp');
+    } else if (connection === "open") {
+      logging("Reconnected to WhatsApp");
     }
   });
 
   sock.ev.process(async (events: any) => {
-    if (events['creds.update']) {
+    if (events["creds.update"]) {
       await saveCreds();
     }
   });
@@ -57,7 +63,9 @@ const reconnect = async (sessionName: string, saveCreds: any) => {
 const connect = async (sessionName: string) => {
   initializeStore(sessionName);
 
-  const { state, saveCreds } = await useMultiFileAuthState(`./${sessionName}_baileys_auth_info`);
+  const { state, saveCreds } = await useMultiFileAuthState(
+    `./auth/${sessionName}_baileys_auth_info`
+  );
   const { version, isLatest } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
@@ -91,17 +99,13 @@ export const connectSession = async (sessionName: string) => {
   }
 };
 
-const isWhatsAppConnected = (sessionName: string) => !!sessions.get(sessionName);
+const isWhatsAppConnected = (sessionName: string) =>
+  !!sessions.get(sessionName);
 
-export const checkConnection = async (req: Request, res: Response) => {
-  const sessionName = req.query.sessionName as string;
+export const checkConnection = async (sessionName: string) => {
   try {
-    if (!isWhatsAppConnected(sessionName)) {
-      return res.status(400).json({ status: 'error', message: 'WhatsApp is not connected' });
-    }
-    res.status(200).json({ status: 'success', message: 'WhatsApp is connected' });
+    return isWhatsAppConnected(sessionName);
   } catch (error: any) {
-    logger.error('Failed to check WhatsApp connection', error);
-    res.status(500).json({ status: 'error', message: 'Failed to check WhatsApp connection', error: error.message });
+    logging(`Failed to check WhatsApp connection: ${error}`);
   }
 };
