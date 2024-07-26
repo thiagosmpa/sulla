@@ -25,6 +25,9 @@ app.get('/', (req, res) => {
   await connectProducer();
 })(); 
 
+const kafka_broker = process.env.KAFKA_BROKER
+console.log(`Kafka Broker: ${kafka_broker}` )
+
 app.use('/api',userRouter)
 app.use('/api',groupRouter)
 app.use('/api',chatsRouter)

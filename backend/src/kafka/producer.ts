@@ -12,7 +12,6 @@ const producer = kafka.producer();
 
 const connectProducer = async () => {
   await producer.connect();
-  console.log('\n\nKafka Broker:', kafkaBroker, '\n\n');
   logging('Kafka Producer connected');
 
   process.on('SIGINT', async () => {
