@@ -19,9 +19,6 @@ WORKDIR /app/sulla/backend
 # Copie e instale as dependências
 RUN npm install
 
-# Execute o build da aplicação
-RUN npm run build
-
 # Exponha a porta 3001
 EXPOSE 3001
 
