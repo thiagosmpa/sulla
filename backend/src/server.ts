@@ -19,14 +19,15 @@ app.use(cors())
 
 app.get('/', (req, res) => {
   res.send('Hello World from backend server!')
+  const kafka_broker = process.env.KAFKA_BROKER
+  console.log(`Kafka Broker: ${kafka_broker}` )
 });
 
 (async () => {
   await connectProducer();
 })(); 
 
-const kafka_broker = process.env.KAFKA_BROKER
-console.log(`Kafka Broker: ${kafka_broker}` )
+
 
 app.use('/api',userRouter)
 app.use('/api',groupRouter)
