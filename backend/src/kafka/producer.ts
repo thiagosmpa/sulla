@@ -2,6 +2,7 @@ import { Kafka } from 'kafkajs';
 import moment from 'moment';
 
 const kafkaBroker = process.env.KAFKA_BROKER || 'localhost:9092';
+console.log('\n\nKafka Broker:', kafkaBroker, '\n\n');
 
 const kafka = new Kafka({
   clientId: 'whatsapp-producer',
