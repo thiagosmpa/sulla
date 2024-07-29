@@ -18,9 +18,8 @@ app.use(express.urlencoded({ extended: true }))
 app.use(cors())
 
 app.get('/', (req, res) => {
-  res.send('Hello World from backend server!')
   const kafka_broker = process.env.KAFKA_BROKER
-  console.log(`Kafka Broker: ${kafka_broker}` )
+  res.send(`Hello World from backend server! Kafka broker: ${kafka_broker}`)
 });
 
 (async () => {

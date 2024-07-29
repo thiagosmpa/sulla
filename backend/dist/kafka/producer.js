@@ -16,7 +16,8 @@ exports.producer = exports.connectProducer = exports.sendMessage = void 0;
 exports.logging = logging;
 const kafkajs_1 = require("kafkajs");
 const moment_1 = __importDefault(require("moment"));
-const kafkaBroker = process.env.KAFKA_BROKER || 'localhost:9092';
+// const kafkaBroker = process.env.KAFKA_BROKER || 'localhost:9092';
+const kafkaBroker = 'localhost:9092';
 const kafka = new kafkajs_1.Kafka({
     clientId: 'whatsapp-producer',
     brokers: [kafkaBroker]

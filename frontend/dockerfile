@@ -1,3 +1,4 @@
+# Use a imagem base do Node.js 20
 FROM node:20
 
 # Defina o diretório de trabalho
@@ -6,18 +7,10 @@ WORKDIR /app
 # Instale o Git
 RUN apt-get update && apt-get install -y git
 
-# Clone o repositório com sparse-checkout para a pasta frontend
-RUN git clone --no-checkout https://github.com/thiagosmpa/sulla.git /app/sulla
-WORKDIR /app/sulla
-RUN git sparse-checkout init --cone
-RUN git sparse-checkout set frontend
-RUN git checkout
+# Copie todos os arquivos da pasta frontend para o container
+COPY . .
 
-# Navegue para o diretório desejado
-WORKDIR /app/sulla/frontend
-
-# Copie e instale as dependências
-COPY package*.json ./
+# Instale as dependências
 RUN npm install
 
 # Execute o build da aplicação

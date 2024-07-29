@@ -28,11 +28,6 @@ const Sidebar: React.FC = () => {
               <a className="p-2 bg-blue-500 hover:bg-blue-600 rounded block text-center">Listar Chats</a>
             </Link>
           </li>
-          <li>
-            <Link legacyBehavior href="/whatsapp">
-              <a className="p-2 bg-blue-500 hover:bg-blue-600 rounded block text-center">Conectar WhatsApp</a>
-            </Link>
-          </li>
         </ul>
       </nav>
     </aside>

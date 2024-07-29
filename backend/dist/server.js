@@ -28,7 +28,8 @@ app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use((0, cors_1.default)());
 app.get('/', (req, res) => {
-    res.send('Hello World from backend server!');
+    const kafka_broker = process.env.KAFKA_BROKER;
+    res.send(`Hello World from backend server! Kafka broker: ${kafka_broker}`);
 });
 (() => __awaiter(void 0, void 0, void 0, function* () {
     yield (0, producer_1.connectProducer)();

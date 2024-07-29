@@ -1,22 +1,17 @@
+# Dockerfile localizado em sulla/backend
+
 FROM node:20
 
 # Defina o diretório de trabalho
 WORKDIR /app
 
-# Instale o Git e Chromium
-RUN apt-get update && apt-get install -y git chromium
+# Instale Chromium e suas dependências
+RUN apt-get update && apt-get install -y chromium
 
-# Clone o repositório com sparse-checkout para a pasta backend
-RUN git clone --no-checkout https://github.com/thiagosmpa/sulla.git /app/sulla
-WORKDIR /app/sulla
-RUN git sparse-checkout init --cone
-RUN git sparse-checkout set backend
-RUN git checkout
+# Copie todos os arquivos da pasta backend para o container
+COPY . .
 
-# Navegue para o diretório desejado
-WORKDIR /app/sulla/backend
-
-# Copie e instale as dependências
+# Instale as dependências
 RUN npm install
 
 # Exponha a porta 3001

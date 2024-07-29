@@ -1,1 +1,6 @@
-{}
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/users/list/page": "app/users/list/page.js",
+  "/users/create/page": "app/users/create/page.js",
+  "/chats/page": "app/chats/page.js"
+}

@@ -2,7 +2,8 @@ import { JsonValue } from "@prisma/client/runtime/library";
 import { Kafka } from "kafkajs";
 import moment from "moment";
 
-const kafkaBroker = process.env.KAFKA_BROKER || "localhost:9092";
+// const kafkaBroker = process.env.KAFKA_BROKER || "localhost:9092";
+const kafkaBroker = "localhost:9092";
 
 const kafka = new Kafka({
   clientId: "whatsapp-producer",

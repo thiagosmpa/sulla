@@ -8,6 +8,7 @@ import os
 
 load_dotenv()
 API_KEY =  os.getenv('API_KEY')
+KAFKA_BROKER = os.getenv('KAFKA_BROKER') 
 
 # Configurações do Kafka
 consumer_config = {

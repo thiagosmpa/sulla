@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/users/list/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/users/list/page.js"
+      "static/chunks/app/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -11,25 +11,25 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/users/create/page": [
+    "/users/list/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/users/create/page.js"
+      "static/chunks/app/users/list/page.js"
     ],
     "/chats/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/chats/page.js"
     ],
-    "/chats/list/[id]/page": [
+    "/users/create/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/chats/list/[id]/page.js"
+      "static/chunks/app/users/create/page.js"
     ],
-    "/whatsapp/page": [
+    "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/whatsapp/page.js"
+      "static/chunks/app/_not-found/page.js"
     ]
   }
 }

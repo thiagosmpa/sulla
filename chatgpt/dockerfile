@@ -7,15 +7,8 @@ WORKDIR /app
 # Instale o Git
 RUN apt-get update && apt-get install -y git
 
-# Clone o repositório com sparse-checkout para a pasta chatgpt
-RUN git clone --no-checkout https://github.com/thiagosmpa/sulla.git /app/sulla
-WORKDIR /app/sulla
-RUN git sparse-checkout init --cone
-RUN git sparse-checkout set chatgpt
-RUN git checkout
-
-# Navegue para o diretório desejado
-WORKDIR /app/sulla/chatgpt
+# Copie todos os arquivos da pasta chatgpt para o container
+COPY . .
 
 # Crie e ative um ambiente conda
 RUN conda create -n sulla python=3.10 -y

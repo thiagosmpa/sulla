@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
-const LIST_URL = `${BACKEND_URL}/api/users/list-user`;
-const UPDATE_URL = `${BACKEND_URL}/api/users/update-user`;
-const DELETE_URL = `${BACKEND_URL}/api/users/delete-user`;
+const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+const LIST_URL = `${backendUrl}/api/users/list-user`;
+const UPDATE_URL = `${backendUrl}/api/users/update-user`;
+const DELETE_URL = `${backendUrl}/api/users/delete-user`;
+const CONECTAR_URL = `${backendUrl}/api/whatsapp/connect`;
 
 type User = {
   userId: string;
@@ -14,12 +15,6 @@ type User = {
   agenda: string;
   instructions: string;
 };
-
-fetch(LIST_URL)
-  .then(response => response.json())
-  .then(data => console.log(data))
-  .catch(error => console.error('Error:', error));
-
 
 const Usuarios: React.FC = () => {
   const [usuarios, setUsuarios] = useState<User[]>([]);
@@ -31,20 +26,19 @@ const Usuarios: React.FC = () => {
   const [loadingUpdate, setLoadingUpdate] = useState<boolean>(false);
   const [loadingDelete, setLoadingDelete] = useState<boolean>(false);
 
-useEffect(() => {
-  axios.get(LIST_URL)
-    .then(response => {
-      console.log("Dados recebidos:", response.data);
-      setUsuarios(response.data.data.users);
-      setLoading(false);
-    })
-    .catch(error => {
-      console.error("Erro ao carregar dados:", error);
-      setError(error.message);
-      setLoading(false);
-    });
-}, []);
-
+  useEffect(() => {
+    axios.get(LIST_URL)
+      .then(response => {
+        console.log("Dados recebidos:", response.data);
+        setUsuarios(response.data.data.users);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error("Erro ao carregar dados:", error);
+        setError(error.message);
+        setLoading(false);
+      });
+  }, []);
 
   const handleOpenPopup = (instructions: string) => {
     setSelectedInstructions(instructions);
@@ -96,6 +90,15 @@ useEffect(() => {
     }
   };
 
+  const handleConnect = async (userId: string) => {
+    try {
+      await axios.post(CONECTAR_URL, { id: userId });
+      alert('Requisição enviada com sucesso');
+    } catch (error) {
+      alert('Erro ao enviar a requisição');
+    }
+  };
+
   if (loading) {
     return <div className="w-full h-full flex flex-col justify-center items-center text-center bg-black text-white">
       <h1 className="text-5xl font-bold">Carregando dados...</h1>
@@ -113,7 +116,6 @@ useEffect(() => {
     <div className='w-full h-full flex flex-col justify-center items-center text-center text-white'>
       <h1 className="text-5xl font-bold">Lista de Usuários</h1>
       <div className='h-full flex flex-col items-center justify-center text-white p-8'>
-        
         <div className="overflow-x-auto overflow-y-auto w-full">
           <table className="min-w-full table-auto bg-gray-800 rounded-lg">
             <thead>
@@ -139,10 +141,10 @@ useEffect(() => {
                       Ver Instruções
                     </button>
                   </td>
-                  <td className="py-3 px-4 space-x-2">
+                  <td className="py-3 px-4 flex space-x-4">
                     <button
                       onClick={() => handleEdit(usuario)}
-                      className="text-yellow-500 hover:underline mr-4"
+                      className="text-yellow-500 hover:underline"
                     >
                       {loadingUpdate && editUser?.userId === usuario.userId ? 'Atualizando...' : 'Editar'}
                     </button>
@@ -151,6 +153,12 @@ useEffect(() => {
                       className="text-red-500 hover:underline"
                     >
                       {loadingDelete ? 'Removendo...' : 'Remover'}
+                    </button>
+                    <button
+                      onClick={() => handleConnect(usuario.userId)}
+                      className="text-green-500 hover:underline"
+                    >
+                      Conectar
                     </button>
                   </td>
                 </tr>
