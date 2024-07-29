@@ -7,8 +7,7 @@ import { getInstructions } from "./instructions";
 import redisClient from "../redis/client";
 
 const agentURL = process.env.agentURL || "http://localhost:18070";
-// const kafkaBroker = process.env.KAFKA_BROKER || "localhost:9092";
-const kafkaBroker = "localhost:9092";
+const kafkaBroker = process.env.KAFKA_BROKER || "localhost:9092";
 
 const kafka = new Kafka({
   clientId: "whatsapp",

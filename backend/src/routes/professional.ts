@@ -1,9 +1,8 @@
-import { Router } from 'express';
-import { getCurrentProfessional } from '../controllers/professional';
+import { Router } from "express";
+import { getCurrentProfessional } from "../controllers/professional";
 
 const router = Router();
 
-router.get('/professionals/current-professional', getCurrentProfessional)
+router.get("/professionals/current-professional", getCurrentProfessional);
 
 export default router;
-
