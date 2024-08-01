@@ -3,18 +3,20 @@ import NodeCache from "node-cache";
 import readline from "readline";
 import makeWASocket, {
   fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore,
-  makeInMemoryStore,
-  useMultiFileAuthState,
+  AuthenticationState,
+  BaileysEventEmitter,
 } from "@whiskeysockets/baileys";
 import MAIN_LOGGER from "../utils/logger";
 import { logging } from "../kafka/producer";
 import redisClient from "../redis/client";
+import prisma from "../db";
+import BaileysBottle from "baileys-bottle";
+
+const sesion_url = process.env.BOTTLE_URL;
 
 const logger = MAIN_LOGGER.child({});
 logger.level = "trace";
 
-const useStore = !process.argv.includes("--no-store");
 const usePairingCode = process.argv.includes("--use-pairing-code");
 const useMobile = process.argv.includes("--mobile");
 
@@ -26,23 +28,15 @@ const rl = readline.createInterface({
 
 const question = (text: string) =>
   new Promise<string>((resolve) => rl.question(text, resolve));
-const store = useStore ? makeInMemoryStore({ logger }) : undefined;
 
 const sessions: Map<string, any> = new Map();
 
-const initializeStore = (sessionName: string) => {
-  if (store) {
-    store.readFromFile(`./auth/${sessionName}_baileys_store_multi.json`);
-    setInterval(() => {
-      store.writeToFile(`./auth/${sessionName}_baileys_store_multi.json`);
-    }, 10000);
-  }
-};
-
-const reconnect = async (sessionName: string, saveCreds: any) => {
+const reconnect = async (sessionName: string, saveState: any) => {
   const sock = sessions.get(sessionName);
+  
   sock.ev.on("connection.update", async (update: any) => {
     const { connection, lastDisconnect } = update;
+    
     if (connection === "close") {
       if (lastDisconnect?.error?.output?.statusCode !== 401) {
         const status = await redisClient.get(`whatsapp:${sessionName}:status`);
@@ -51,9 +45,6 @@ const reconnect = async (sessionName: string, saveCreds: any) => {
           await connect(sessionName);
           await redisClient.set(`whatsapp:${sessionName}:status`, "connected");
         }
-      } else {
-        logging("Logout due to 401 error");
-        await redisClient.set(`whatsapp:${sessionName}:status`, "disconnected");
       }
     } else if (connection === "open") {
       logging("Reconnected to WhatsApp");
@@ -61,26 +52,28 @@ const reconnect = async (sessionName: string, saveCreds: any) => {
     }
   });
 
-  sock.ev.process(async (events: any) => {
-    if (events["creds.update"]) {
-      await saveCreds();
-    }
+  (sock.ev as BaileysEventEmitter).on("creds.update", async () => {
+    await saveState();
   });
 };
 
 const connect = async (sessionName: string) => {
   const status = await redisClient.get(`whatsapp:${sessionName}:status`);
-  if (status === "connected" || status === "connecting") {
-    logging(`Session ${sessionName} is already connected or connecting.`);
-    return;
-  }
 
   await redisClient.set(`whatsapp:${sessionName}:status`, "connecting");
-  initializeStore(sessionName);
 
-  const { state, saveCreds } = await useMultiFileAuthState(
-    `./auth/${sessionName}_baileys_auth_info`
-  );
+  // Inicialize o BaileysBottle
+  const bottle = await BaileysBottle.init({
+    type: "postgres",
+    url: sesion_url,
+  });
+
+  console.log("Creating store...");
+  const { auth, store } = await bottle.createStore(sessionName);
+  console.log("Creating auth...");
+  const { state, saveState } = await auth.useAuthHandle();
+  console.log("Done");
+
   const { version, isLatest } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
@@ -88,20 +81,21 @@ const connect = async (sessionName: string) => {
     logger,
     printQRInTerminal: !usePairingCode,
     mobile: useMobile,
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, logger),
-    },
+    auth: state as unknown as AuthenticationState,
     msgRetryCounterCache,
     generateHighQualityLinkPreview: true,
   });
 
-  if (store) {
-    store.bind(sock.ev);
-  }
+  // Crie um wrapper para o store.bind
+  const wrappedBind = (ev: BaileysEventEmitter) => {
+    // @ts-ignore
+    store.bind(ev);
+  };
+
+  wrappedBind(sock.ev);
 
   sessions.set(sessionName, sock);
-  await reconnect(sessionName, saveCreds);
+  await reconnect(sessionName, saveState);
   await listenMessage(sock, sessionName);
   await redisClient.set(`whatsapp:${sessionName}:status`, "connected");
 };
