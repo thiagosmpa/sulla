@@ -109,6 +109,7 @@ export async function createController(req: Request, res: Response) {
           name: name,
           agenda: agenda,
           instructions: instructions,
+          connectionStatus: "offline",
         },
       });
       res.status(200).json({

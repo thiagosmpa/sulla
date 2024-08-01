@@ -42,6 +42,7 @@ model Users {
   name              String   @unique
   instructions      String
   agenda            String
+  connectionStatus  String
   createdAt         DateTime @default(now())
   chats             Chats[]
 }

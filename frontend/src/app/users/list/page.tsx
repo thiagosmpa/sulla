@@ -14,6 +14,7 @@ type User = {
   email: string;
   agenda: string;
   instructions: string;
+  connectionStatus: string;
 };
 
 const Usuarios: React.FC = () => {
@@ -123,6 +124,7 @@ const Usuarios: React.FC = () => {
                 <th className="py-3 px-4 bg-gray-700 text-left">ID</th>
                 <th className="py-3 px-4 bg-gray-700 text-left">Nome</th>
                 <th className="py-3 px-4 bg-gray-700 text-left">Agenda</th>
+                <th className="py-3 px-4 bg-gray-700 text-left">Status</th>
                 <th className="py-3 px-4 bg-gray-700 text-left">Instruções</th>
                 <th className="py-3 px-4 bg-gray-700 text-left">Ações</th>
               </tr>
@@ -133,6 +135,7 @@ const Usuarios: React.FC = () => {
                   <td className="py-3 px-4">{usuario.userId}</td>
                   <td className="py-3 px-4">{usuario.name}</td>
                   <td className="py-3 px-4">{usuario.agenda}</td>
+                  <td className="py-3 px-4">{usuario.connectionStatus}</td>
                   <td className="py-3 px-4">
                     <button
                       onClick={() => handleOpenPopup(usuario.instructions)}
