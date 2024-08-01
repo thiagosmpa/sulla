@@ -62,7 +62,7 @@ function processAgentResponse(data: any) {
   logging(`Agent Response: ${agentMessage}`);
   logging(`Updated History: ${history}`);
 
-  sendMessage(chatId, { text: agentMessage });
+  sendMessage(sessionName, chatId, { text: agentMessage });
 }
 
 async function processConnection(message: any) {

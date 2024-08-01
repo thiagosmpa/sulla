@@ -1,81 +1,87 @@
-import { listenMessage } from "./message/listenMessage";
+import { PrismaClient } from "@prisma/client";
+import BaileysBottle from "baileys-bottle";
+import { Boom } from "@hapi/boom";
 import NodeCache from "node-cache";
-import readline from "readline";
 import makeWASocket, {
   fetchLatestBaileysVersion,
   AuthenticationState,
-  BaileysEventEmitter,
+  AuthenticationCreds,
+  DisconnectReason,
 } from "@whiskeysockets/baileys";
 import MAIN_LOGGER from "../utils/logger";
-import { logging } from "../kafka/producer";
+import { logging, messageProducer } from "../kafka/producer";
 import redisClient from "../redis/client";
-import prisma from "../db";
-import BaileysBottle from "baileys-bottle";
+import { listenMessage } from "./message/listenMessage";
 
+const prisma = new PrismaClient();
 const sesion_url = process.env.BOTTLE_URL;
-
 const logger = MAIN_LOGGER.child({});
 logger.level = "trace";
 
 const usePairingCode = process.argv.includes("--use-pairing-code");
 const useMobile = process.argv.includes("--mobile");
 
+interface SessionInfo {
+  sock: any;
+  lastActivity: Date;
+}
+
+const sessions: Map<string, SessionInfo> = new Map();
 const msgRetryCounterCache = new NodeCache();
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
 
-const question = (text: string) =>
-  new Promise<string>((resolve) => rl.question(text, resolve));
+export function getSessionSocket(sessionName: string) {
+  const sessionInfo = sessions.get(sessionName);
+  return sessionInfo ? sessionInfo.sock : null;
+}
 
-const sessions: Map<string, any> = new Map();
-
-const reconnect = async (sessionName: string, saveState: any) => {
-  const sock = sessions.get(sessionName);
-  
-  sock.ev.on("connection.update", async (update: any) => {
-    const { connection, lastDisconnect } = update;
-    
-    if (connection === "close") {
-      if (lastDisconnect?.error?.output?.statusCode !== 401) {
-        const status = await redisClient.get(`whatsapp:${sessionName}:status`);
-        if (status !== "connecting") {
-          await redisClient.set(`whatsapp:${sessionName}:status`, "connecting");
-          await connect(sessionName);
-          await redisClient.set(`whatsapp:${sessionName}:status`, "connected");
-        }
-      }
-    } else if (connection === "open") {
-      logging("Reconnected to WhatsApp");
-      await redisClient.set(`whatsapp:${sessionName}:status`, "connected");
+async function initializeSessions() {
+  const allSessions = await prisma.session.findMany();
+  for (const session of allSessions) {
+    try {
+      await connectSession(session.name);
+    } catch (error) {
+      logging(`Failed to initialize session ${session.name}: ${error}`);
     }
+  }
+}
+
+async function updateSessionStatus(sessionName: string, status: string) {
+  await redisClient.set(`whatsapp:${sessionName}:status`, status);
+}
+
+async function createOrUpdateSessionState(sessionName: string, state: any) {
+  await prisma.session.upsert({
+    where: { name: sessionName },
+    update: { state: JSON.stringify(state) },
+    create: { name: sessionName, state: JSON.stringify(state) },
   });
+}
 
-  (sock.ev as BaileysEventEmitter).on("creds.update", async () => {
-    await saveState();
-  });
-};
+async function handleConnectionUpdate(sessionName: string, update: any, connect: Function) {
+  const { connection, lastDisconnect } = update;
+  if (connection === "close") {
+    const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+    if (shouldReconnect) {
+      logging(`Reconnecting ${sessionName}...`);
+      await connect(sessionName);
+    } else {
+      logging(`Connection closed for ${sessionName}. Logged out.`);
+      await updateSessionStatus(sessionName, "disconnected");
+      await prisma.session.delete({ where: { name: sessionName } });
+      sessions.delete(sessionName);
+    }
+  } else if (connection === "open") {
+    logging(`Connected ${sessionName} successfully`);
+    await updateSessionStatus(sessionName, "connected");
+    const sessionInfo = sessions.get(sessionName);
+    if (sessionInfo) {
+      sessionInfo.lastActivity = new Date();
+    }
+  }
+}
 
-const connect = async (sessionName: string) => {
-  const status = await redisClient.get(`whatsapp:${sessionName}:status`);
-
-  await redisClient.set(`whatsapp:${sessionName}:status`, "connecting");
-
-  // Inicialize o BaileysBottle
-  const bottle = await BaileysBottle.init({
-    type: "postgres",
-    url: sesion_url,
-  });
-
-  console.log("Creating store...");
-  const { auth, store } = await bottle.createStore(sessionName);
-  console.log("Creating auth...");
-  const { state, saveState } = await auth.useAuthHandle();
-  console.log("Done");
-
-  const { version, isLatest } = await fetchLatestBaileysVersion();
-
+async function setupSocket(sessionName: string, state: any, saveState: (creds: Partial<AuthenticationCreds>) => Promise<void>) {
+  const { version } = await fetchLatestBaileysVersion();
   const sock = makeWASocket({
     version,
     logger,
@@ -86,37 +92,97 @@ const connect = async (sessionName: string) => {
     generateHighQualityLinkPreview: true,
   });
 
-  // Crie um wrapper para o store.bind
-  const wrappedBind = (ev: BaileysEventEmitter) => {
-    // @ts-ignore
-    store.bind(ev);
-  };
+  sock.ev.on("connection.update", (update) => handleConnectionUpdate(sessionName, update, connect));
+  sock.ev.on("creds.update", saveState);
 
-  wrappedBind(sock.ev);
+  return sock;
+}
 
-  sessions.set(sessionName, sock);
-  await reconnect(sessionName, saveState);
-  await listenMessage(sock, sessionName);
-  await redisClient.set(`whatsapp:${sessionName}:status`, "connected");
-};
+async function connect(sessionName: string, initialState?: any) {
+  await updateSessionStatus(sessionName, "connecting");
 
-export const connectSession = async (sessionName: string) => {
   try {
-    await connect(sessionName);
+    const bottle = await BaileysBottle.init({ type: "postgres", url: sesion_url });
+    const { auth, store } = await bottle.createStore(sessionName);
+
+    const { state, saveState } = initialState
+      ? {
+          state: initialState,
+          saveState: async () => {
+            await createOrUpdateSessionState(sessionName, initialState);
+          },
+        }
+      : await auth.useAuthHandle();
+
+    await createOrUpdateSessionState(sessionName, state);
+
+    const sock = await setupSocket(sessionName, state, saveState);
+    // @ts-ignore
+    store.bind(sock.ev);
+    sessions.set(sessionName, { sock, lastActivity: new Date() });
+
+    // Use a função listenMessage importada
+    await listenMessage(sock, sessionName);
+
     logging(`WhatsApp connected successfully with session ${sessionName}`);
-  } catch (error: any) {
-    logging(`Failed to connect to WhatsApp \n${error}\n`);
-    await redisClient.set(`whatsapp:${sessionName}:status`, "disconnected");
+    await updateSessionStatus(sessionName, "connected");
+  } catch (error) {
+    logging(`Failed to connect WhatsApp for session ${sessionName}: ${error}`);
+    await updateSessionStatus(sessionName, "disconnected");
+    throw error;
   }
-};
+}
 
-const isWhatsAppConnected = (sessionName: string) =>
-  !!sessions.get(sessionName);
+export async function connectSession(sessionName: string) {
+  try {
+    const existingSession = await prisma.session.findUnique({ where: { name: sessionName } });
+    if (existingSession) {
+      logging(`Restoring existing session ${sessionName}`);
+      const state = JSON.parse(existingSession.state);
+      await connect(sessionName, state);
+    } else {
+      logging(`Creating new session ${sessionName}`);
+      await connect(sessionName);
+    }
+  } catch (error: any) {
+    logging(`Failed to connect WhatsApp for session ${sessionName}: ${error}`);
+    await updateSessionStatus(sessionName, "disconnected");
+    throw error;
+  }
+}
 
-export const checkConnection = async (sessionName: string) => {
+export function isWhatsAppConnected(sessionName: string) {
+  return !!sessions.get(sessionName);
+}
+
+export async function checkConnection(sessionName: string) {
   try {
     return isWhatsAppConnected(sessionName);
   } catch (error: any) {
     logging(`Failed to check WhatsApp connection: ${error}`);
   }
-};
+}
+
+// Função para iniciar o servidor e inicializar as sessões
+export async function startServer() {
+  await initializeSessions();
+  logging("Server started and sessions initialized");
+}
+
+// Funções auxiliares
+function getMessageType(message: any): string {
+  return Object.keys(message.message || {})[0];
+}
+
+function isTextMessage(messageType: string): boolean {
+  return messageType === "conversation" || messageType === "extendedTextMessage";
+}
+
+function getTextContent(message: any, messageType: string): string {
+  if (messageType === "conversation") {
+    return message.message.conversation;
+  } else if (messageType === "extendedTextMessage") {
+    return message.message.extendedTextMessage.text;
+  }
+  return "";
+}
