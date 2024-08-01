@@ -70,16 +70,16 @@ async function setupSocket(
 
   sock.ev.on("creds.update", saveState);
 
-  sock.ev.on("connection.update", (update) => {
-    let sessionStatus = getSessionStatus(sessionName);
+  sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
+    console.log
     if (connection === "close") {
       const shouldReconnect =
         (lastDisconnect?.error as Boom)?.output?.statusCode !==
         DisconnectReason.loggedOut;
       if (shouldReconnect) {
         logging(`Reconnecting ${sessionName}...`);
-        connect(sessionName);
+        await connect(sessionName);
       } else {
         logging(`Connection closed for ${sessionName}. Logged out.`);
         sessions.delete(sessionName);
@@ -91,6 +91,9 @@ async function setupSocket(
         sessionInfo.lastActivity = new Date();
       }
     }
+    // Atualiza o status da sessão a cada atualização de conexão
+    const sessionStatus = getSessionStatus(sessionName);
+    logging(`Session ${sessionName} status: ${sessionStatus}`);
   });
 
   return sock;
@@ -170,7 +173,6 @@ export function getSessionStatus(sessionName: string): string {
   const state = ["CONNECTING", "CONNECTED", "DISCONNECTING", "DISCONNECTED"];
   let status = state[sock.ws.readyState];
   status = sock.user ? "AUTHENTICATED" : status;
-  console.log(`\n\nstatus: ${status}\n\n`);
   return status;
 }
 
