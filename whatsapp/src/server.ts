@@ -1,5 +1,4 @@
 import express, { Router } from "express";
-import whatsappRouter from "./routes/whatsapp";
 import { connectProducer } from "./kafka/producer";
 import { connectConsumer, startConsumer } from "./kafka/consumer";
 import { startServer } from "./controllers/whatsapp";
@@ -18,6 +17,5 @@ app.get("/", (req, res) => {
   await startConsumer();
   // await startServer();
 })();
-app.use("/api", whatsappRouter);
 
 export default app;

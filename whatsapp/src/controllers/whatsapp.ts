@@ -37,66 +37,23 @@ async function initializeSessions() {
   const allUsers = await prisma.users.findMany();
   for (const user of allUsers) {
     try {
-      await connectSession(user.name);
+      await connectSession(user.userId);
     } catch (error) {
-      logging(`Failed to initialize session for user ${user.name}: ${error}`);
+      logging(`Failed to initialize session for user ${user.userId}: ${error}`);
     }
   }
 }
 
-async function updateSessionStatus(userName: string, status: string) {
-  await prisma.users.update({
-    where: { userId: userName },
-    data: { connectionStatus: status },
-  });
-}
-
-async function getSessionStatus(userName: string): Promise<string | null> {
-  const user = await prisma.users.findUnique({
-    where: { userId: userName },
-    select: { connectionStatus: true },
-  });
-  return user?.connectionStatus || null;
-}
-
-async function createOrUpdateSessionState(userName: string, state: any) {
+async function createOrUpdateSessionState(sessionName: string, state: any) {
   await prisma.session.upsert({
-    where: { name: userName },
+    where: { name: sessionName },
     update: { state: JSON.stringify(state) },
-    create: { name: userName, state: JSON.stringify(state) },
+    create: { name: sessionName, state: JSON.stringify(state) },
   });
-}
-
-async function handleConnectionUpdate(
-  userName: string,
-  update: any,
-  connect: Function
-) {
-  const { connection, lastDisconnect } = update;
-  if (connection === "close") {
-    const shouldReconnect =
-      (lastDisconnect?.error as Boom)?.output?.statusCode !==
-      DisconnectReason.loggedOut;
-    if (shouldReconnect) {
-      logging(`Reconnecting ${userName}...`);
-      await connect(userName);
-    } else {
-      logging(`Connection closed for ${userName}. Logged out.`);
-      await updateSessionStatus(userName, "disconnected");
-      sessions.delete(userName);
-    }
-  } else if (connection === "open") {
-    logging(`Connected ${userName} successfully`);
-    await updateSessionStatus(userName, "connected");
-    const sessionInfo = sessions.get(userName);
-    if (sessionInfo) {
-      sessionInfo.lastActivity = new Date();
-    }
-  }
 }
 
 async function setupSocket(
-  userName: string,
+  sessionName: string,
   state: any,
   saveState: (creds: Partial<AuthenticationCreds>) => Promise<void>
 ) {
@@ -111,110 +68,110 @@ async function setupSocket(
     generateHighQualityLinkPreview: true,
   });
 
-  sock.ev.on("connection.update", (update) =>
-    handleConnectionUpdate(userName, update, connect)
-  );
   sock.ev.on("creds.update", saveState);
+
+  sock.ev.on("connection.update", (update) => {
+    let sessionStatus = getSessionStatus(sessionName);
+    const { connection, lastDisconnect } = update;
+    if (connection === "close") {
+      const shouldReconnect =
+        (lastDisconnect?.error as Boom)?.output?.statusCode !==
+        DisconnectReason.loggedOut;
+      if (shouldReconnect) {
+        logging(`Reconnecting ${sessionName}...`);
+        connect(sessionName);
+      } else {
+        logging(`Connection closed for ${sessionName}. Logged out.`);
+        sessions.delete(sessionName);
+      }
+    } else if (connection === "open") {
+      logging(`Connected ${sessionName} successfully`);
+      const sessionInfo = sessions.get(sessionName);
+      if (sessionInfo) {
+        sessionInfo.lastActivity = new Date();
+      }
+    }
+  });
 
   return sock;
 }
 
-async function connect(userName: string, initialState?: any) {
-  await updateSessionStatus(userName, "connecting");
-
+async function connect(sessionName: string, initialState?: any) {
   try {
     const bottle = await BaileysBottle.init({
       type: "postgres",
       url: sesion_url,
     });
-    const { auth, store } = await bottle.createStore(userName);
+    const { auth, store } = await bottle.createStore(sessionName);
 
     const { state, saveState } = initialState
       ? {
           state: initialState,
           saveState: async () => {
-            await createOrUpdateSessionState(userName, initialState);
+            await createOrUpdateSessionState(sessionName, initialState);
           },
         }
       : await auth.useAuthHandle();
 
-    await createOrUpdateSessionState(userName, state);
+    await createOrUpdateSessionState(sessionName, state);
 
-    const sock = await setupSocket(userName, state, saveState);
+    const sock = await setupSocket(sessionName, state, saveState);
     // @ts-ignore
     store.bind(sock.ev);
 
-    const existingSessionInfo = sessions.get(userName);
+    const existingSessionInfo = sessions.get(sessionName);
     if (existingSessionInfo) {
       existingSessionInfo.sock = sock;
       existingSessionInfo.lastActivity = new Date();
     } else {
-      sessions.set(userName, { sock, lastActivity: new Date() });
+      sessions.set(sessionName, { sock, lastActivity: new Date() });
     }
 
-    await listenMessage(sock, userName);
+    await listenMessage(sock, sessionName);
 
-    logging(`WhatsApp connected successfully for user ${userName}`);
-    await updateSessionStatus(userName, "connected");
+    logging(`WhatsApp connected successfully for user ${sessionName}`);
   } catch (error) {
-    logging(`Failed to connect WhatsApp for user ${userName}: ${error}`);
-    await updateSessionStatus(userName, "disconnected");
+    logging(`Failed to connect WhatsApp for user ${sessionName}: ${error}`);
+    sessions.delete(sessionName);
     throw error;
   }
 }
 
-export async function connectSession(userName: string) {
+export async function connectSession(sessionName: string) {
   try {
     const existingUser = await prisma.users.findUnique({
-      where: { name: userName },
+      where: { userId: sessionName },
     });
-    const currentStatus = await getSessionStatus(userName);
-
-    if (existingUser && currentStatus === "connected") {
-      logging(
-        `Session for user ${userName} is already connected. Skipping connection.`
-      );
-      return;
-    }
 
     const existingSession = await prisma.session.findUnique({
-      where: { name: userName },
+      where: { name: sessionName },
     });
     if (existingSession) {
-      logging(`Restoring existing session for user ${userName}`);
+      logging(`Restoring existing session for user ${sessionName}`);
       const state = JSON.parse(existingSession.state);
-
-      if (currentStatus === "disconnected") {
-        await connect(userName, state);
-      } else {
-        logging(
-          `Session for user ${userName} is in ${currentStatus} state. Skipping connection.`
-        );
-      }
+      await connect(sessionName, state);
     } else {
-      logging(`Creating new session for user ${userName}`);
-      await connect(userName);
+      logging(`Creating new session for user ${sessionName}`);
+      await connect(sessionName);
     }
   } catch (error: any) {
-    logging(`Failed to connect WhatsApp for user ${userName}: ${error}`);
-    await updateSessionStatus(userName, "disconnected");
+    logging(`Failed to connect WhatsApp for user ${sessionName}: ${error}`);
     throw error;
   }
 }
 
-export async function isWhatsAppConnected(userName: string) {
-  const status = await getSessionStatus(userName);
-  return status === "connected";
-}
-
-export async function checkConnection(userName: string) {
-  try {
-    return await isWhatsAppConnected(userName);
-  } catch (error: any) {
-    logging(
-      `Failed to check WhatsApp connection for user ${userName}: ${error}`
-    );
+export function getSessionStatus(sessionName: string): string {
+  const sessionInfo = sessions.get(sessionName);
+  if (!sessionInfo) {
+    return "DISCONNECTED";
   }
+
+  const { sock } = sessionInfo;
+  const state = ["CONNECTING", "CONNECTED", "DISCONNECTING", "DISCONNECTED"];
+  let status = state[sock.ws.readyState];
+  status = sock.user ? "AUTHENTICATED" : status;
+  console.log(`\n\nstatus: ${status}\n\n`);
+  return status;
 }
 
 // Função para iniciar o servidor e inicializar as sessões

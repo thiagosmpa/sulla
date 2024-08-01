@@ -1,6 +1,6 @@
 import { Kafka } from "kafkajs";
 import { sendMessage } from "../controllers/message/sendMessage";
-import { checkConnection, connectSession } from "../controllers/whatsapp";
+import { connectSession } from "../controllers/whatsapp";
 import { agentRequestProducer, logging } from "./producer";
 import { getChatHistory, updateChatHistory } from "./chatHistory";
 import { getInstructions } from "./instructions";
