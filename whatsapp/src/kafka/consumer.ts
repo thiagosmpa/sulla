@@ -5,6 +5,7 @@ import { agentRequestProducer, logging } from "./producer";
 import { getChatHistory, updateChatHistory } from "./chatHistory";
 import { getInstructions } from "./instructions";
 import redisClient from "../redis/client";
+import { getConnectionStatus } from "../controllers/whatsapp";
 
 const agentURL = process.env.agentURL || "http://localhost:18070";
 const kafkaBroker = process.env.KAFKA_BROKER || "localhost:9092";
@@ -95,11 +96,18 @@ async function startConsumer(): Promise<void> {
           if (topic === "whatsapp-messages") {
             processMessage(message, topic, partition);
           } else if (topic === "whatsapp-connection") {
-            if ((await redisClient.get(message.value.toString())) === "sent") {
-              logging(`Session ${message.value.toString()} already sent`);
+            const sessionMessage = JSON.parse(message.value.toString());
+            const sessionName = sessionMessage.id;
+            const connectionStatus = getConnectionStatus(sessionName);
+            if (
+              connectionStatus === "CONNECTED" ||
+              connectionStatus === "CONNECTING" ||
+              connectionStatus === "RECONNECTING" ||
+              connectionStatus === "RECONNECTED" ||
+              connectionStatus === "AUTHENTICATED"
+            ) {
               return;
             }
-            await redisClient.set(message.value.toString(), "sent", { EX: 20 });
             logging(`Connecting to Session Name: ${message.value.toString()}`);
             processConnection(message);
           } else if (topic === "agent-response") {

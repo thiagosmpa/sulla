@@ -26,11 +26,17 @@ interface SessionInfo {
 }
 
 const sessions: Map<string, SessionInfo> = new Map();
+const connectionStatus: Map<string, string> = new Map();
+
 const msgRetryCounterCache = new NodeCache();
 
 export function getSessionSocket(sessionName: string) {
   const sessionInfo = sessions.get(sessionName);
   return sessionInfo ? sessionInfo.sock : null;
+}
+
+export function getConnectionStatus(sessionName: string) {
+  return connectionStatus.get(sessionName);
 }
 
 async function initializeSessions() {
@@ -72,28 +78,31 @@ async function setupSocket(
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
-    console.log
-    if (connection === "close") {
+    if (connection === "connecting") {
+      connectionStatus.set(sessionName, "CONNECTING");
+    } else if (connection === "open") {
+      connectionStatus.set(sessionName, "CONNECTED");
+      const sessionInfo = sessions.get(sessionName);
+      if (sessionInfo) {
+        sessionInfo.lastActivity = new Date();
+      }
+    } else if (connection === "close") {
       const shouldReconnect =
         (lastDisconnect?.error as Boom)?.output?.statusCode !==
         DisconnectReason.loggedOut;
       if (shouldReconnect) {
         logging(`Reconnecting ${sessionName}...`);
+        connectionStatus.set(sessionName, "RECONNECTING");
         await connect(sessionName);
       } else {
         logging(`Connection closed for ${sessionName}. Logged out.`);
+        connectionStatus.set(sessionName, "DISCONNECTED");
         sessions.delete(sessionName);
-      }
-    } else if (connection === "open") {
-      logging(`Connected ${sessionName} successfully`);
-      const sessionInfo = sessions.get(sessionName);
-      if (sessionInfo) {
-        sessionInfo.lastActivity = new Date();
       }
     }
     // Atualiza o status da sessão a cada atualização de conexão
-    const sessionStatus = getSessionStatus(sessionName);
-    logging(`Session ${sessionName} status: ${sessionStatus}`);
+    const connectionStatusValue = getSessionStatus(sessionName);
+    logging(`Session ${sessionName} status: ${connectionStatusValue}`);
   });
 
   return sock;
@@ -133,8 +142,10 @@ async function connect(sessionName: string, initialState?: any) {
     await listenMessage(sock, sessionName);
 
     logging(`WhatsApp connected successfully for user ${sessionName}`);
+    connectionStatus.set(sessionName, "CONNECTED");
   } catch (error) {
     logging(`Failed to connect WhatsApp for user ${sessionName}: ${error}`);
+    connectionStatus.set(sessionName, "DISCONNECTED");
     sessions.delete(sessionName);
     throw error;
   }
@@ -152,6 +163,11 @@ export async function connectSession(sessionName: string) {
     if (existingSession) {
       logging(`Restoring existing session for user ${sessionName}`);
       const state = JSON.parse(existingSession.state);
+      if (
+        getSessionStatus(sessionName) === "CONNECTING" ||
+        getSessionStatus(sessionName) === "CONNECTED" ||
+        getSessionStatus(sessionName) === "AUTHENTICATED"
+      ) return
       await connect(sessionName, state);
     } else {
       logging(`Creating new session for user ${sessionName}`);
@@ -159,6 +175,7 @@ export async function connectSession(sessionName: string) {
     }
   } catch (error: any) {
     logging(`Failed to connect WhatsApp for user ${sessionName}: ${error}`);
+    connectionStatus.set(sessionName, "DISCONNECTED");
     throw error;
   }
 }
@@ -173,6 +190,7 @@ export function getSessionStatus(sessionName: string): string {
   const state = ["CONNECTING", "CONNECTED", "DISCONNECTING", "DISCONNECTED"];
   let status = state[sock.ws.readyState];
   status = sock.user ? "AUTHENTICATED" : status;
+  connectionStatus.set(sessionName, status);
   return status;
 }
 
