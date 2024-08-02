@@ -39,6 +39,7 @@ async function sendToKafka(
 const connectProducer = async () => {
   try {
     await producer.connect();
+    await prisma.users.updateMany({ data: { connectionStatus: "DISCONNECTED" } });
     logging("Kafka Producer connected");
   } catch (error) {
     logging(`Error connecting to Kafka Producer: ${error}`);

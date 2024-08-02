@@ -201,9 +201,13 @@ export async function connectSession(sessionName: string) {
     throw new Error(`User ${sessionName} not found`);
   }
 
-  const currentStatus = getSessionStatus(sessionName);
-  if (["CONNECTING", "CONNECTED", "AUTHENTICATED"].includes(currentStatus)) {
-    logging(`Session ${sessionName} is already ${currentStatus}`);
+  const user = await prisma.users.findUnique({
+    where: { userId: sessionName },
+  });
+  let connectionStatus = user?.connectionStatus;
+
+  if (connectionStatus == "CONNECTED" || connectionStatus == "CONNECTING") {
+    console.log(`\n\nSession ${sessionName} already connected\n\n`);
     return;
   }
 
