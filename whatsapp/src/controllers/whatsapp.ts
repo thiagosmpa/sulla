@@ -44,6 +44,9 @@ export function getSessionSocket(sessionName: string) {
 export function getConnectionStatus(sessionName: string) {
   return connectionStatus.get(sessionName);
 }
+function isSessionEffectivelyConnected(status: string): boolean {
+  return ["CONNECTED", "AUTHENTICATED_ACTIVE", "AUTHENTICATED_IDLE", "AUTHENTICATED_INACTIVE"].includes(status);
+}
 
 async function initializeSessions() {
   const allUsers = await prisma.users.findMany();
@@ -202,21 +205,16 @@ async function connect(sessionName: string, initialState?: any) {
 
 export async function connectSession(sessionName: string) {
   try {
-    // Verifica se já existe uma conexão em andamento para esta sessão
-    if (connectingSessionsInProgress.get(sessionName)) {
-      logging(`Connection already in progress for session ${sessionName}. Skipping.`);
+    // Verifica o status atual da sessão
+    const currentStatus = getSessionStatus(sessionName);
+    if (isSessionEffectivelyConnected(currentStatus)) {
+      logging(`Session ${sessionName} is already effectively connected (${currentStatus}). Skipping.`);
       return;
     }
 
-    // Verifica o status atual da sessão
-    const currentStatus = getSessionStatus(sessionName);
-    if (
-      currentStatus === "CONNECTED" ||
-      currentStatus === "AUTHENTICATED_ACTIVE" ||
-      currentStatus === "AUTHENTICATED_IDLE" ||
-      currentStatus === "AUTHENTICATED_INACTIVE"
-    ) {
-      logging(`Session ${sessionName} is already connected (${currentStatus}). Skipping.`);
+    // Verifica se já existe uma conexão em andamento para esta sessão
+    if (connectingSessionsInProgress.get(sessionName)) {
+      logging(`Connection already in progress for session ${sessionName}. Skipping.`);
       return;
     }
 
