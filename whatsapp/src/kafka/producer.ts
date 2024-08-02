@@ -1,6 +1,7 @@
 import { JsonValue } from "@prisma/client/runtime/library";
 import { Kafka } from "kafkajs";
 import moment from "moment";
+import prisma from "../db";
 
 // const kafkaBroker = process.env.KAFKA_BROKER || "localhost:9092";
 const kafkaBroker = "localhost:9092";
@@ -44,6 +45,7 @@ const connectProducer = async () => {
   }
 
   process.on("SIGINT", async () => {
+    await prisma.users.updateMany({ data: { connectionStatus: "DISCONNECTED" } });
     await producer.disconnect();
     logging("\nKafka Producer disconnected\n");
     process.exit();

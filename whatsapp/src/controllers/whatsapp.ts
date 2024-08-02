@@ -28,24 +28,19 @@ interface SessionInfo {
 
 const sessions: Map<string, SessionInfo> = new Map();
 const connectionStatus: Map<string, string> = new Map();
-const connectingSessionsInProgress = new Map<string, boolean>();
 
 const msgRetryCounterCache = new NodeCache();
 
-const HEARTBEAT_INTERVAL = 30000; // 30 segundos
+const HEARTBEAT_INTERVAL = 30000; // 30 seconds
 const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_INTERVAL = 5000; // 5 segundos
+const RECONNECT_INTERVAL = 5000; // 5 seconds
 
 export function getSessionSocket(sessionName: string) {
-  const sessionInfo = sessions.get(sessionName);
-  return sessionInfo ? sessionInfo.sock : null;
+  return sessions.get(sessionName)?.sock || null;
 }
 
 export function getConnectionStatus(sessionName: string) {
   return connectionStatus.get(sessionName);
-}
-function isSessionEffectivelyConnected(status: string): boolean {
-  return ["CONNECTED", "AUTHENTICATED_ACTIVE", "AUTHENTICATED_IDLE", "AUTHENTICATED_INACTIVE"].includes(status);
 }
 
 async function initializeSessions() {
@@ -87,7 +82,7 @@ function startHeartbeat(sessionName: string, sock: any) {
 
 function stopHeartbeat(sessionName: string) {
   const sessionInfo = sessions.get(sessionName);
-  if (sessionInfo && sessionInfo.heartbeatInterval) {
+  if (sessionInfo?.heartbeatInterval) {
     clearInterval(sessionInfo.heartbeatInterval);
     sessionInfo.heartbeatInterval = null;
   }
@@ -179,17 +174,11 @@ async function connect(sessionName: string, initialState?: any) {
     // @ts-ignore
     store.bind(sock.ev);
 
-    const existingSessionInfo = sessions.get(sessionName);
-    if (existingSessionInfo) {
-      existingSessionInfo.sock = sock;
-      existingSessionInfo.lastActivity = new Date();
-    } else {
-      sessions.set(sessionName, {
-        sock,
-        lastActivity: new Date(),
-        heartbeatInterval: null,
-      });
-    }
+    sessions.set(sessionName, {
+      sock,
+      lastActivity: new Date(),
+      heartbeatInterval: null,
+    });
 
     await listenMessage(sock, sessionName);
 
@@ -204,43 +193,31 @@ async function connect(sessionName: string, initialState?: any) {
 }
 
 export async function connectSession(sessionName: string) {
-  try {
-    const currentStatus = getSessionStatus(sessionName);
+  const existingUser = await prisma.users.findUnique({
+    where: { userId: sessionName },
+  });
 
-    // Prevent concurrent connection attempts
-    if (isSessionEffectivelyConnected(currentStatus) || connectingSessionsInProgress.get(sessionName)) {
-      logging(`Session ${sessionName} is already connected/connecting (${currentStatus}). Skipping.`);
-      return;
-    }
+  if (!existingUser) {
+    throw new Error(`User ${sessionName} not found`);
+  }
 
-    connectingSessionsInProgress.set(sessionName, true); // Mark connection in progress
+  const currentStatus = getSessionStatus(sessionName);
+  if (["CONNECTING", "CONNECTED", "AUTHENTICATED"].includes(currentStatus)) {
+    logging(`Session ${sessionName} is already ${currentStatus}`);
+    return;
+  }
 
-    const existingUser = await prisma.users.findUnique({
-      where: { userId: sessionName },
-    });
+  const existingSession = await prisma.session.findUnique({
+    where: { name: sessionName },
+  });
 
-    if (!existingUser) {
-      throw new Error(`User ${sessionName} not found`);
-    }
-
-    const existingSession = await prisma.session.findUnique({
-      where: { name: sessionName },
-    });
-
-    if (existingSession) {
-      logging(`Restoring existing session for user ${sessionName}`);
-      const state = JSON.parse(existingSession.state);
-      await connect(sessionName, state);
-    } else {
-      logging(`Creating new session for user ${sessionName}`);
-      await connect(sessionName);
-    }
-  } catch (error: any) {
-    logging(`Failed to connect WhatsApp for user ${sessionName}: ${error}`);
-    await updateSessionStatus(sessionName, "DISCONNECTED"); // Update status even on failure
-    throw error;
-  } finally {
-    connectingSessionsInProgress.delete(sessionName); // Always clear the flag
+  if (existingSession) {
+    logging(`Restoring existing session for user ${sessionName}`);
+    const state = JSON.parse(existingSession.state);
+    await connect(sessionName, state);
+  } else {
+    logging(`Creating new session for user ${sessionName}`);
+    await connect(sessionName);
   }
 }
 
@@ -259,28 +236,19 @@ async function updateSessionStatus(sessionName: string, status: string) {
 
 export function getSessionStatus(sessionName: string): string {
   const sessionInfo = sessions.get(sessionName);
-  if (!sessionInfo) {
+  if (!sessionInfo || !sessionInfo.sock || !sessionInfo.sock.user) {
     return "DISCONNECTED";
   }
 
-  const { sock, lastActivity } = sessionInfo;
-
-  if (!sock || !sock.user) {
+  if (sessionInfo.sock.ws.readyState !== WebSocket.OPEN) {
     return "DISCONNECTED";
   }
 
-  if (sock.ws.readyState !== WebSocket.OPEN) {
-    return "DISCONNECTED";
-  }
-
-  const now = new Date();
-  const timeSinceLastActivity = now.getTime() - lastActivity.getTime();
+  const timeSinceLastActivity = Date.now() - sessionInfo.lastActivity.getTime();
 
   if (timeSinceLastActivity < 5000) {
-    // 5 segundos
     return "AUTHENTICATED_ACTIVE";
   } else if (timeSinceLastActivity < 60000) {
-    // 1 minuto
     return "AUTHENTICATED_IDLE";
   } else {
     return "AUTHENTICATED_INACTIVE";
@@ -290,24 +258,4 @@ export function getSessionStatus(sessionName: string): string {
 export async function startServer() {
   await initializeSessions();
   logging("Server started and sessions initialized");
-}
-
-// Funções auxiliares (mantidas como estavam)
-function getMessageType(message: any): string {
-  return Object.keys(message.message || {})[0];
-}
-
-function isTextMessage(messageType: string): boolean {
-  return (
-    messageType === "conversation" || messageType === "extendedTextMessage"
-  );
-}
-
-function getTextContent(message: any, messageType: string): string {
-  if (messageType === "conversation") {
-    return message.message.conversation;
-  } else if (messageType === "extendedTextMessage") {
-    return message.message.extendedTextMessage.text;
-  }
-  return "";
 }
