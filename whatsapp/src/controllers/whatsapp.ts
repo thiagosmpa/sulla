@@ -31,9 +31,9 @@ const connectionStatus: Map<string, string> = new Map();
 
 const msgRetryCounterCache = new NodeCache();
 
-const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+const HEARTBEAT_INTERVAL = 30000; // 30 segundos
 const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_INTERVAL = 5000; // 5 seconds
+const RECONNECT_INTERVAL = 5000; // 5 segundos
 
 export function getSessionSocket(sessionName: string) {
   return sessions.get(sessionName)?.sock || null;
@@ -144,9 +144,7 @@ async function reconnect(sessionName: string, attempt: number = 1) {
   try {
     await connect(sessionName);
   } catch (error) {
-    logging(
-      `Reconnection attempt ${attempt} failed for ${sessionName}: ${error}`
-    );
+    logging(`Reconnection attempt ${attempt} failed for ${sessionName}: ${error}`);
     setTimeout(() => reconnect(sessionName, attempt + 1), RECONNECT_INTERVAL);
   }
 }
@@ -158,7 +156,6 @@ async function connect(sessionName: string, initialState?: any) {
       url: sesion_url,
     });
     const { auth, store } = await bottle.createStore(sessionName);
-
     const { state, saveState } = initialState
       ? {
           state: initialState,
@@ -167,7 +164,6 @@ async function connect(sessionName: string, initialState?: any) {
           },
         }
       : await auth.useAuthHandle();
-
     await createOrUpdateSessionState(sessionName, state);
 
     const sock = await setupSocket(sessionName, state, saveState);
@@ -201,20 +197,15 @@ export async function connectSession(sessionName: string) {
     throw new Error(`User ${sessionName} not found`);
   }
 
-  const user = await prisma.users.findUnique({
-    where: { userId: sessionName },
-  });
-  let connectionStatus = user?.connectionStatus;
-
-  if (connectionStatus == "CONNECTED" || connectionStatus == "CONNECTING") {
-    console.log(`\n\nSession ${sessionName} already connected\n\n`);
-    return;
-  }
+  if (sessions.has(sessionName)) {
+    await reconnect(sessionName);
+    console.log(`\n\nSession ${sessionName} reconnecting\n\n`);
+      return
+    }
 
   const existingSession = await prisma.session.findUnique({
     where: { name: sessionName },
   });
-
   if (existingSession) {
     logging(`Restoring existing session for user ${sessionName}`);
     const state = JSON.parse(existingSession.state);
