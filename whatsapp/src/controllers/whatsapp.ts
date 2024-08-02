@@ -23,12 +23,18 @@ const useMobile = process.argv.includes("--mobile");
 interface SessionInfo {
   sock: any;
   lastActivity: Date;
+  heartbeatInterval: NodeJS.Timeout | null;
 }
 
 const sessions: Map<string, SessionInfo> = new Map();
 const connectionStatus: Map<string, string> = new Map();
+const connectingSessionsInProgress = new Map<string, boolean>();
 
 const msgRetryCounterCache = new NodeCache();
+
+const HEARTBEAT_INTERVAL = 30000; // 30 segundos
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_INTERVAL = 5000; // 5 segundos
 
 export function getSessionSocket(sessionName: string) {
   const sessionInfo = sessions.get(sessionName);
@@ -58,6 +64,32 @@ async function createOrUpdateSessionState(sessionName: string, state: any) {
   });
 }
 
+function startHeartbeat(sessionName: string, sock: any) {
+  const interval = setInterval(() => {
+    if (sock.ws.readyState === WebSocket.OPEN) {
+      sock.sendRawMessage("2").catch((error: any) => {
+        logging(`Heartbeat failed for ${sessionName}: ${error}`);
+        updateSessionStatus(sessionName, "DISCONNECTED");
+      });
+    } else {
+      updateSessionStatus(sessionName, "DISCONNECTED");
+    }
+  }, HEARTBEAT_INTERVAL);
+
+  const sessionInfo = sessions.get(sessionName);
+  if (sessionInfo) {
+    sessionInfo.heartbeatInterval = interval;
+  }
+}
+
+function stopHeartbeat(sessionName: string) {
+  const sessionInfo = sessions.get(sessionName);
+  if (sessionInfo && sessionInfo.heartbeatInterval) {
+    clearInterval(sessionInfo.heartbeatInterval);
+    sessionInfo.heartbeatInterval = null;
+  }
+}
+
 async function setupSocket(
   sessionName: string,
   state: any,
@@ -79,34 +111,46 @@ async function setupSocket(
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === "connecting") {
-      connectionStatus.set(sessionName, "CONNECTING");
+      updateSessionStatus(sessionName, "CONNECTING");
     } else if (connection === "open") {
-      connectionStatus.set(sessionName, "CONNECTED");
-      const sessionInfo = sessions.get(sessionName);
-      if (sessionInfo) {
-        sessionInfo.lastActivity = new Date();
-      }
+      updateSessionStatus(sessionName, "CONNECTED");
+      startHeartbeat(sessionName, sock);
     } else if (connection === "close") {
+      stopHeartbeat(sessionName);
       const shouldReconnect =
         (lastDisconnect?.error as Boom)?.output?.statusCode !==
         DisconnectReason.loggedOut;
       if (shouldReconnect) {
         logging(`Reconnecting ${sessionName}...`);
-        connectionStatus.set(sessionName, "RECONNECTING");
-        await connect(sessionName);
+        updateSessionStatus(sessionName, "RECONNECTING");
+        await reconnect(sessionName);
       } else {
         logging(`Connection closed for ${sessionName}. Logged out.`);
-        connectionStatus.set(sessionName, "DISCONNECTED");
+        updateSessionStatus(sessionName, "DISCONNECTED");
         sessions.delete(sessionName);
       }
     }
-    // Atualiza o status da sessão a cada atualização de conexão
-    const status = getSessionStatus(sessionName);
-    connectionStatus.set(sessionName, status);
-    logging(`Session ${sessionName} status: ${status}`);
   });
-  
+
   return sock;
+}
+
+async function reconnect(sessionName: string, attempt: number = 1) {
+  if (attempt > MAX_RECONNECT_ATTEMPTS) {
+    logging(`Max reconnection attempts reached for ${sessionName}`);
+    updateSessionStatus(sessionName, "DISCONNECTED");
+    sessions.delete(sessionName);
+    return;
+  }
+
+  try {
+    await connect(sessionName);
+  } catch (error) {
+    logging(
+      `Reconnection attempt ${attempt} failed for ${sessionName}: ${error}`
+    );
+    setTimeout(() => reconnect(sessionName, attempt + 1), RECONNECT_INTERVAL);
+  }
 }
 
 async function connect(sessionName: string, initialState?: any) {
@@ -137,18 +181,20 @@ async function connect(sessionName: string, initialState?: any) {
       existingSessionInfo.sock = sock;
       existingSessionInfo.lastActivity = new Date();
     } else {
-      sessions.set(sessionName, { sock, lastActivity: new Date() });
+      sessions.set(sessionName, {
+        sock,
+        lastActivity: new Date(),
+        heartbeatInterval: null,
+      });
     }
 
     await listenMessage(sock, sessionName);
 
     logging(`WhatsApp connected successfully for user ${sessionName}`);
-    const status = getSessionStatus(sessionName);
-    connectionStatus.set(sessionName, status);
-    logging(`Session ${sessionName} status: ${status}`);
+    updateSessionStatus(sessionName, "CONNECTED");
   } catch (error) {
     logging(`Failed to connect WhatsApp for user ${sessionName}: ${error}`);
-    connectionStatus.set(sessionName, "DISCONNECTED");
+    updateSessionStatus(sessionName, "DISCONNECTED");
     sessions.delete(sessionName);
     throw error;
   }
@@ -156,21 +202,42 @@ async function connect(sessionName: string, initialState?: any) {
 
 export async function connectSession(sessionName: string) {
   try {
+    // Verifica se já existe uma conexão em andamento para esta sessão
+    if (connectingSessionsInProgress.get(sessionName)) {
+      logging(`Connection already in progress for session ${sessionName}. Skipping.`);
+      return;
+    }
+
+    // Verifica o status atual da sessão
+    const currentStatus = getSessionStatus(sessionName);
+    if (
+      currentStatus === "CONNECTED" ||
+      currentStatus === "AUTHENTICATED_ACTIVE" ||
+      currentStatus === "AUTHENTICATED_IDLE" ||
+      currentStatus === "AUTHENTICATED_INACTIVE"
+    ) {
+      logging(`Session ${sessionName} is already connected (${currentStatus}). Skipping.`);
+      return;
+    }
+
+    // Marca esta sessão como em processo de conexão
+    connectingSessionsInProgress.set(sessionName, true);
+
     const existingUser = await prisma.users.findUnique({
       where: { userId: sessionName },
     });
+
+    if (!existingUser) {
+      throw new Error(`User ${sessionName} not found`);
+    }
 
     const existingSession = await prisma.session.findUnique({
       where: { name: sessionName },
     });
 
-    const currentStatus = getSessionStatus(sessionName);
-    if (
-      currentStatus === "CONNECTING" ||
-      currentStatus === "CONNECTED" ||
-      currentStatus === "AUTHENTICATED"
-    ) {
-      logging(`Session ${sessionName} is already ${currentStatus}`);
+    if (currentStatus === "CONNECTING") {
+      logging(`Session ${sessionName} is already in the process of connecting. Waiting...`);
+      // Aqui você pode implementar uma lógica de espera, se necessário
       return;
     }
 
@@ -184,9 +251,25 @@ export async function connectSession(sessionName: string) {
     }
   } catch (error: any) {
     logging(`Failed to connect WhatsApp for user ${sessionName}: ${error}`);
-    connectionStatus.set(sessionName, "DISCONNECTED");
+    await updateSessionStatus(sessionName, "DISCONNECTED");
     throw error;
+  } finally {
+    // Remove o marcador de conexão em andamento, independente do resultado
+    connectingSessionsInProgress.delete(sessionName);
   }
+}
+
+async function updateSessionStatus(sessionName: string, status: string) {
+  connectionStatus.set(sessionName, status);
+  const sessionInfo = sessions.get(sessionName);
+  if (sessionInfo) {
+    sessionInfo.lastActivity = new Date();
+  }
+  logging(`Session ${sessionName} status updated to: ${status}`);
+  await prisma.users.update({
+    where: { userId: sessionName },
+    data: { connectionStatus: status },
+  });
 }
 
 export function getSessionStatus(sessionName: string): string {
@@ -195,38 +278,36 @@ export function getSessionStatus(sessionName: string): string {
     return "DISCONNECTED";
   }
 
-  const { sock } = sessionInfo;
-  
-  if (!sock.user) {
-    return ["CONNECTING", "CONNECTED", "DISCONNECTING", "DISCONNECTED"][sock.ws.readyState];
+  const { sock, lastActivity } = sessionInfo;
+
+  if (!sock || !sock.user) {
+    return "DISCONNECTED";
   }
-  
-  // Se chegamos aqui, o usuário está autenticado
+
   if (sock.ws.readyState !== WebSocket.OPEN) {
-    return "AUTHENTICATED_DISCONNECTED";
+    return "DISCONNECTED";
   }
-  
-  // Verificar a última atividade
-  const lastActivity = sessionInfo.lastActivity;
+
   const now = new Date();
   const timeSinceLastActivity = now.getTime() - lastActivity.getTime();
-  
-  if (timeSinceLastActivity < 5000) { // 5 segundos
+
+  if (timeSinceLastActivity < 5000) {
+    // 5 segundos
     return "AUTHENTICATED_ACTIVE";
-  } else if (timeSinceLastActivity < 60000) { // 1 minuto
+  } else if (timeSinceLastActivity < 60000) {
+    // 1 minuto
     return "AUTHENTICATED_IDLE";
   } else {
     return "AUTHENTICATED_INACTIVE";
   }
 }
 
-// Função para iniciar o servidor e inicializar as sessões
 export async function startServer() {
   await initializeSessions();
   logging("Server started and sessions initialized");
 }
 
-// Funções auxiliares
+// Funções auxiliares (mantidas como estavam)
 function getMessageType(message: any): string {
   return Object.keys(message.message || {})[0];
 }
