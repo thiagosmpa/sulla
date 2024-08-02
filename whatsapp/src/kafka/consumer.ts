@@ -96,18 +96,6 @@ async function startConsumer(): Promise<void> {
           if (topic === "whatsapp-messages") {
             processMessage(message, topic, partition);
           } else if (topic === "whatsapp-connection") {
-            const sessionMessage = JSON.parse(message.value.toString());
-            const sessionName = sessionMessage.id;
-            const connectionStatus = getConnectionStatus(sessionName);
-            if (
-              connectionStatus === "CONNECTED" ||
-              connectionStatus === "CONNECTING" ||
-              connectionStatus === "RECONNECTING" ||
-              connectionStatus === "RECONNECTED" ||
-              connectionStatus === "AUTHENTICATED"
-            ) {
-              return;
-            }
             logging(`Connecting to Session Name: ${message.value.toString()}`);
             processConnection(message);
           } else if (topic === "agent-response") {
