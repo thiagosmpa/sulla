@@ -205,21 +205,15 @@ async function connect(sessionName: string, initialState?: any) {
 
 export async function connectSession(sessionName: string) {
   try {
-    // Verifica o status atual da sessão
     const currentStatus = getSessionStatus(sessionName);
-    if (isSessionEffectivelyConnected(currentStatus)) {
-      logging(`Session ${sessionName} is already effectively connected (${currentStatus}). Skipping.`);
+
+    // Prevent concurrent connection attempts
+    if (isSessionEffectivelyConnected(currentStatus) || connectingSessionsInProgress.get(sessionName)) {
+      logging(`Session ${sessionName} is already connected/connecting (${currentStatus}). Skipping.`);
       return;
     }
 
-    // Verifica se já existe uma conexão em andamento para esta sessão
-    if (connectingSessionsInProgress.get(sessionName)) {
-      logging(`Connection already in progress for session ${sessionName}. Skipping.`);
-      return;
-    }
-
-    // Marca esta sessão como em processo de conexão
-    connectingSessionsInProgress.set(sessionName, true);
+    connectingSessionsInProgress.set(sessionName, true); // Mark connection in progress
 
     const existingUser = await prisma.users.findUnique({
       where: { userId: sessionName },
@@ -233,12 +227,6 @@ export async function connectSession(sessionName: string) {
       where: { name: sessionName },
     });
 
-    if (currentStatus === "CONNECTING") {
-      logging(`Session ${sessionName} is already in the process of connecting. Waiting...`);
-      // Aqui você pode implementar uma lógica de espera, se necessário
-      return;
-    }
-
     if (existingSession) {
       logging(`Restoring existing session for user ${sessionName}`);
       const state = JSON.parse(existingSession.state);
@@ -249,11 +237,10 @@ export async function connectSession(sessionName: string) {
     }
   } catch (error: any) {
     logging(`Failed to connect WhatsApp for user ${sessionName}: ${error}`);
-    await updateSessionStatus(sessionName, "DISCONNECTED");
+    await updateSessionStatus(sessionName, "DISCONNECTED"); // Update status even on failure
     throw error;
   } finally {
-    // Remove o marcador de conexão em andamento, independente do resultado
-    connectingSessionsInProgress.delete(sessionName);
+    connectingSessionsInProgress.delete(sessionName); // Always clear the flag
   }
 }
 
