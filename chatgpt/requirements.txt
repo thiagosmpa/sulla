@@ -1,6 +1,0 @@
-confluent_kafka==2.5.0
-google-api-python-client==2.132.0
-openai==1.37.0
-protobuf==5.27.2
-python-dotenv==1.0.1
-python-dateutil==2.9.0

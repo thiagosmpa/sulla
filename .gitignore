@@ -1,8 +1,8 @@
 # Ignorar arquivos .env nas pastas especificadas
 .env
-whatsapp/.env
-whatsapp/node_modules
-chatgpt/.env
-backend/node_modules
-frontend/node_modules
+0_frontend/node_modules
+1_backend/node_modules
+2_whatsapp/.env
+2_whatsapp/node_modules
+3_chatgpt/.env
 docker-compose.yml
