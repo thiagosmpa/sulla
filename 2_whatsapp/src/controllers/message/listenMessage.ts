@@ -5,21 +5,21 @@ import { prisma } from "../../db";
 
 async function updateMessageDB(
 	sessionId: string,
-	chatId: string,
 	from: string,
+	role: string,
 	type: string,
-	message: string,
+	content: string,
 ) {
 	try {
-		if (message == "") return;
+		if (content == "") return;
 
 		await prisma.message2.create({
 			data: {
 				sessionId: sessionId,
-				chatId: chatId,
 				from: from,
+				role: role,
+				content: content,
 				type: type,
-				message: message,
 			},
 		});
 	} catch (error: any) {
@@ -31,24 +31,24 @@ export async function listenMessage(sock: any, sessionName: string) {
 	sock.ev.on("messages.upsert", async (m: any) => {
 		const message = m.messages[0];
 		const messageType = getMessageType(message);
-		const chatId = message.key.remoteJid;
-		const from = message.key.fromMe ? "system" : "user";
-		const sender = await redisClient.get(`${sessionName}/${chatId}/sender`);
+		const from = message.key.remoteJid;
+		const role = message.key.fromMe ? "system" : "user";
+		const sender = await redisClient.get(`${sessionName}/${from}/sender`);
 		const textContent = getTextContent(message, messageType);
 
-		updateMessageDB(sessionName, chatId, from, messageType, textContent);
+		updateMessageDB(sessionName, from, role, messageType, textContent);
 
 		if (sender !== "bot" && isTextMessage(messageType)) {
 			try {
-				await messageProducer(sessionName, chatId, textContent);
+				await messageProducer(sessionName, from, textContent);
 			} catch (error) {
 				logging(`Producer error: ${error}`);
 			}
 		} else if (sender === "bot") {
-			logging(`Producer (ignored by bot): ${sessionName}/${chatId}: ${textContent}`);
-			await redisClient.del(`${sessionName}/${chatId}/sender`);
+			logging(`Producer (ignored by bot): ${sessionName}/${from}: ${textContent}`);
+			await redisClient.del(`${sessionName}/${from}/sender`);
 		} else {
-			logging(`Producer (ignored): ${sessionName}/${chatId}: ${textContent}`);
+			logging(`Producer (ignored): ${sessionName}/${from}: ${textContent}`);
 		}
 	});
 }

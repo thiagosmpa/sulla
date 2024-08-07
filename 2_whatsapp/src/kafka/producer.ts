@@ -52,11 +52,12 @@ export async function messageProducer(
 		clearTimeout(messageBuffer[chatId].timer!);
 	}
 
-	const history = (await getChatHistory(sessionName, chatId)) || "";
 	const instructions = (await getInstructions(sessionName)) || "";
-
+	
 	messageBuffer[chatId].timer = setTimeout(async () => {
 		const combinedMessage = messageBuffer[chatId].messages.join("\n");
+		const history = (await getChatHistory(sessionName, chatId)) || "";
+		console.log(`History: ${history}`);
 		await sendMessageToAgent(sessionName, chatId, combinedMessage, history, instructions);
 		messageBuffer[chatId].messages = [];
 		messageBuffer[chatId].timer = null;
@@ -104,19 +105,26 @@ export async function logging(log: string): Promise<void> {
 }
 
 async function getChatHistory(sessionId: string, chatId: string) {
-	try {
-		const chat = await prisma.chat2.findFirst({
-			where: {
-				sessionId: sessionId,
-				chatId: chatId,
-			},
-		});
-		return chat?.history;
-	} catch (error) {
-		console.error(error);
-		logging("Error getting chat history");
-	}
-}
+	const messages = await prisma.message2.findMany({
+	  where: {
+		sessionId: sessionId,
+		from: chatId,
+	  },
+	  orderBy: {
+		updatedAt: 'asc',
+	  },
+	});
+  
+	const chatHistory = messages.map(message => ({
+	  role: message.from === 'user' ? 'user' : 'system',
+	  content: message.content,
+	}));
+	
+	const chatHistoryString = JSON.stringify(chatHistory);
+
+	return chatHistoryString;
+  }
+
 
 async function getInstructions(sessionId: string) {
 	try {
