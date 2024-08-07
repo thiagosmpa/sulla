@@ -183,16 +183,16 @@ model Chat2 {
   sessionId         String    @unique
   chatId            String    @unique
   history           Json      @default("[]")
-  canAnswer         Boolean
-  updatedAt         DateTime  @updatedAt
+  updatedAt         DateTime  @default(now())
   user              Users     @relation(fields: [sessionId], references: [sessionId])
 }
 
 model Message2 {
-  sessionId         String    @unique
-  chatId            String    @unique
-  from              String
-  message           String
-  type              String
-  updatedAt         DateTime @default(now())
+  pkId             Int      @id @default(autoincrement())
+  sessionId        String
+  chatId           String
+  from             String
+  message          String
+  type             String
+  updatedAt        DateTime @default(now())
 }

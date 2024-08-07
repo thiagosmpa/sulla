@@ -188,10 +188,11 @@ model Chat2 {
 }
 
 model Message2 {
-  sessionId         String    @unique
-  chatId            String    @unique
-  from              String
-  message           String
-  type              String
-  updatedAt         DateTime @default(now())
+  pkId             Int      @id @default(autoincrement())
+  sessionId        String
+  chatId           String
+  from             String
+  message          String
+  type             String
+  updatedAt        DateTime @default(now())
 }

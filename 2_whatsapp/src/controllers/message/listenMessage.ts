@@ -2,7 +2,6 @@ import { messageProducer } from "../../kafka/producer";
 import { logging } from "../../kafka/producer";
 import redisClient from "../../redis/client";
 import { prisma } from "../../db";
-import { message } from "@/controllers";
 
 async function updateMessageDB(
 	sessionId: string,
@@ -11,24 +10,21 @@ async function updateMessageDB(
 	type: string,
 	message: string,
 ) {
-	await prisma.message2.upsert({
-		where: {
-			sessionId: sessionId,
-			chatId: chatId,
-		},
-		create: {
-			sessionId: sessionId,
-			chatId: chatId,
-			from: from,
-			type: type,
-			message: message,
-		},
-		update: {
-			from: from,
-			type: type,
-			message: message,
-		},
-	});
+	try {
+		if (message == "") return;
+
+		await prisma.message2.create({
+			data: {
+				sessionId: sessionId,
+				chatId: chatId,
+				from: from,
+				type: type,
+				message: message,
+			},
+		});
+	} catch (error: any) {
+		logging(`Error: ${error}`);
+	}
 }
 
 export async function listenMessage(sock: any, sessionName: string) {
