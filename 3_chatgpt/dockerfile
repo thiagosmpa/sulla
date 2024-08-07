@@ -1,0 +1,26 @@
+# Use a imagem base do Python 3.10
+FROM continuumio/miniconda3:latest
+
+# Defina o diretório de trabalho
+WORKDIR /app
+
+# Instale o Git
+RUN apt-get update && apt-get install -y git
+
+# Copie todos os arquivos da pasta chatgpt para o container
+COPY . .
+
+# Crie e ative um ambiente conda
+RUN conda create -n sulla python=3.10 -y
+RUN echo "conda activate sulla" >> ~/.bashrc
+SHELL ["conda", "run", "-n", "sulla", "/bin/bash", "-c"]
+
+# Instale as dependências listadas em requirements.txt
+RUN conda install pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Exponha a porta 3004
+EXPOSE 3004
+
+# Comando para iniciar a aplicação
+CMD ["conda", "run", "--no-capture-output", "-n", "sulla", "python", "app.py"]

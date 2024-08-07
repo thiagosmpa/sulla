@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Estilo para a barra de rolagem */
+.transparent-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.transparent-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transparent-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.5); /* Cor da barra de rolagem */
+  border-radius: 20px;
+  border: 3px solid transparent;
+}
+
+.transparent-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.5) transparent; /* Para Firefox */
+  scrollbar-width: thin; /* Para Firefox */
+}
+
