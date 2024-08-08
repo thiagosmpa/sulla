@@ -27,28 +27,25 @@ async function updateMessageDB(
 	}
 }
 
-export async function listenMessage(sock: any, sessionName: string) {
+export async function listenMessage(sock: any, sessionId: string) {
 	sock.ev.on("messages.upsert", async (m: any) => {
 		const message = m.messages[0];
 		const messageType = getMessageType(message);
 		const from = message.key.remoteJid;
-		const role = message.key.fromMe ? "system" : "user";
-		const sender = await redisClient.get(`${sessionName}/${from}/sender`);
+		const role = message.key.fromMe ? "assistant" : "user";
+		const sender = await redisClient.get(`${sessionId}/${from}/sender`);
 		const textContent = getTextContent(message, messageType);
 
-		updateMessageDB(sessionName, from, role, messageType, textContent);
+		updateMessageDB(sessionId, from, role, messageType, textContent);
 
 		if (sender !== "bot" && isTextMessage(messageType)) {
 			try {
-				await messageProducer(sessionName, from, textContent);
+				await messageProducer(sessionId, from, textContent);
 			} catch (error) {
 				logging(`Producer error: ${error}`);
 			}
 		} else if (sender === "bot") {
-			logging(`Producer (ignored by bot): ${sessionName}/${from}: ${textContent}`);
-			await redisClient.del(`${sessionName}/${from}/sender`);
-		} else {
-			logging(`Producer (ignored): ${sessionName}/${from}: ${textContent}`);
+			await redisClient.del(`${sessionId}/${from}/sender`);
 		}
 	});
 }

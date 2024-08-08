@@ -11,7 +11,7 @@ const sessionsQR = new Map<string, string>();
 async function getConnectionStatus(sessionId: string) {
   // status: wait_for_qrcode_auth, authenticated, pulling_wa_data, connected, disconnected
   try {
-    const response = await prisma.users.findUnique({
+    const response = await prisma.session2.findUnique({
       where: { sessionId },
       select: { connectionStatus: true },
     });

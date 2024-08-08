@@ -1,10 +1,10 @@
 import { logging } from "../../kafka/producer";
 import { getSession } from "../../whatsapp";
 
-export const sendMessage = (sessionName:string, chatId: string, message: any) => {
-  const sock = getSession(sessionName);
+export const sendMessage = (sessionId:string, chatId: string, message: any) => {
+  const sock = getSession(sessionId);
   if (!sock) {
-    throw new Error(`No active session found for ${sessionName}`);
+    throw new Error(`No active session found for ${sessionId}`);
   }
   try {
     sock.sendMessage(chatId, message);

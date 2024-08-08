@@ -6,7 +6,7 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 const API_URL = `${BACKEND_URL}/api/users/create-user`;
 
 const CreateUser: React.FC = () => {
-  const [sessionName, setName] = useState<string>('');
+  const [sessionId, setName] = useState<string>('');
   const [agenda, setAgenda] = useState<string>('');
   const [instructions, setInstructions] = useState<string>('');
   const [response, setResponse] = useState<string | null>(null);
@@ -20,7 +20,7 @@ const CreateUser: React.FC = () => {
 
     try {
       const res = await axios.post(API_URL, {
-        sessionName,
+        sessionId,
         agenda,
         instructions
       });
@@ -43,11 +43,11 @@ const CreateUser: React.FC = () => {
       <div className='w-1/2 h-full flex flex-col items-center justify-center text-white p-8'>
         <div className="w-full bg-gray-800 p-8 rounded-lg shadow-lg">
           <div className="mb-4 text-left">
-            <label htmlFor="sessionName" className="block text-gray-300 font-bold mb-2">Nome:</label>
+            <label htmlFor="sessionId" className="block text-gray-300 font-bold mb-2">Nome:</label>
             <input
               type="text"
-              id="sessionName"
-              value={sessionName}
+              id="sessionId"
+              value={sessionId}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 border rounded text-black"
             />

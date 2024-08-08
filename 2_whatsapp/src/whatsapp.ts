@@ -51,7 +51,7 @@ export async function updateWaStatus(sessionId: string, waStatus: WAStatus) {
 		console.warn(waStatus);
 		sessions.set(sessionId, { ..._session, waStatus });
 		try {
-			await prisma.users.update({
+			await prisma.session2.update({
 				where: { sessionId },
 				data: { connectionStatus: waStatus },
 			});

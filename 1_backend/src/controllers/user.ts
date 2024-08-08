@@ -4,7 +4,7 @@ import prisma from "../db";
 export const getCurrentUser = async (req: Request, res: Response) => {
   const { sessionId } = req.body;
   try {
-    const users = await prisma.users.findUnique({
+    const users = await prisma.session2.findUnique({
       where: {
         sessionId: sessionId,
       },
@@ -33,7 +33,7 @@ export const deleteUser = async (req: Request, res: Response) => {
         sessionId: sessionId,
       },
     });
-    await prisma.users.deleteMany({
+    await prisma.session2.deleteMany({
       where: {
         sessionId: sessionId,
       },
@@ -81,7 +81,7 @@ export const updateUser = async (req: Request, res: Response) => {
   if (instructions) data.instructions = instructions;
 
   try {
-    const user = await prisma.users.update({
+    const user = await prisma.session2.update({
       where: { sessionId: sessionId },
       data: data,
     });
@@ -99,7 +99,7 @@ export const updateUser = async (req: Request, res: Response) => {
 
 export const listUsers = async (req: Request, res: Response) => {
   try {
-    const users = await prisma.users.findMany();
+    const users = await prisma.session2.findMany();
     res.status(200).json({
       status: "success",
       data: {
@@ -116,11 +116,11 @@ export const listUsers = async (req: Request, res: Response) => {
 };
 
 export async function createUser(req: Request, res: Response) {
-  const { sessionName, agenda, instructions } = req.body;
+  const { sessionId, agenda, instructions } = req.body;
 
-  const findUniqueName = await prisma.users.findUnique({
+  const findUniqueName = await prisma.session2.findUnique({
     where: {
-      name: sessionName,
+      name: sessionId,
     },
   });
   if (findUniqueName !== null) {
@@ -130,9 +130,9 @@ export async function createUser(req: Request, res: Response) {
     });
   } else {
     try {
-      const user = await prisma.users.create({
+      const user = await prisma.session2.create({
         data: {
-          name: sessionName,
+          name: sessionId,
           agenda: agenda,
           instructions: instructions,
           connectionStatus: "offline",

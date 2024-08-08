@@ -24,14 +24,6 @@ def process_message(data):
     logging(f'Consuming message: {data}')
     Chatbot = Chatgpt()
     
-    if "history" in data:
-        if data['history'] == '':
-            history = None
-        else:
-            history = ast.literal_eval(data['history'])
-    else:
-        history = None
-    
     if "instructions" in data:
         if type(data['instructions']) == str:
             instructions = data['instructions']
@@ -42,34 +34,31 @@ def process_message(data):
     
     if "message" in data:
         message = data['message']
+        if type(message) == str:
+            message = ast.literal_eval(message)
     
-    if "sessionName" in data:
-        session_name = data['sessionName']
-
     if "sessionId" in data:
-        session_name = data['sessionId']
+        sessionId = data['sessionId']
     
-    if "chatId" in data:
-        chat_id = data['chatId']
+    if ("chatId" in data):
+        chatId = data['chatId']
 
-    try:
-        answer, messages = Chatbot.create_answer(
-            instructions_string=instructions,
-            history=history,
-            user_input=message
-        )
-        messages.pop(0)
-        response = {
-            "message": str(answer),
-            "history": str(messages),
-            "sessionName": str(session_name),
-            "chatId": str(chat_id)
-        }
-        return response
+    # try:
+    response = Chatbot.create_answer(
+        instructions_string=instructions,
+        message=message
+    )
+
+    agent_response = {
+        "message": str(response),
+        "sessionId": str(sessionId),
+        "chatId": str(chatId)
+    }
+    return agent_response
     
-    except Exception as e:
-        logging(f"Error processing messages: {str(e)}")
-        return {"error": "Failed to process messages", "details": str(e)}
+    # except Exception as e:
+    #     logging(f"Error processing messages: {str(e)}")
+    #     return {"error": "Failed to process messages", "details": str(e)}
     
 if __name__ == "__main__":
     print('\nConecting Agent Python\n')
@@ -85,6 +74,6 @@ if __name__ == "__main__":
         
         data = json.loads(msg.value().decode('utf-8'))
         logging(f"Consuming message: {data}")
-        response = process_message(data)
+        agent_response = process_message(data)
+        produceResponse(agent_response)
         
-        produceResponse(response)

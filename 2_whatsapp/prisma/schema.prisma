@@ -169,7 +169,7 @@ model Session {
   @@index([sessionId])
 }
 
-model Users {
+model Session2 {
   sessionId         String   @id @unique @default(uuid())
   name              String   @unique
   instructions      String
@@ -180,19 +180,19 @@ model Users {
 }
 
 model Chat2 {
-  sessionId         String    @unique
-  chatId            String    @unique
-  history           Json      @default("[]")
-  updatedAt         DateTime  @default(now())
-  user              Users     @relation(fields: [sessionId], references: [sessionId])
+  sessionId         String              @unique
+  chatId            String              @unique
+  history           Json                @default("[]")
+  updatedAt         DateTime            @default(now())
+  session           Session2            @relation(fields: [sessionId], references: [sessionId])
 }
 
 model Message2 {
-  pkId             Int      @id @default(autoincrement())
-  sessionId        String
-  from             String
-  role             String
-  content          String
-  type             String
-  updatedAt        DateTime @default(now())
+  pkId              Int      @id @default(autoincrement())
+  sessionId         String
+  from              String
+  role              String
+  content           String
+  type              String
+  updatedAt         DateTime @default(now())
 }

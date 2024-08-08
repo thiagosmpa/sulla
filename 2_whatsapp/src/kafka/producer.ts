@@ -22,13 +22,13 @@ const messageBuffer: { [key: string]: MessageBuffer } = {};
 export const connectProducer = async () => {
 	try {
 		await producer.connect();
-		await prisma.users.updateMany({ data: { connectionStatus: "server offline" } });
+		await prisma.session2.updateMany({ data: { connectionStatus: "server offline" } });
 		logging("Kafka Producer connected");
 	} catch (error) {
 		logging(`Error connecting to Kafka Producer: ${error}`);
 	}
 	process.on("SIGINT", async () => {
-		await prisma.users.updateMany({ data: { connectionStatus: "server offline" } });
+		await prisma.session2.updateMany({ data: { connectionStatus: "server offline" } });
 		await producer.disconnect();
 		logging("\nKafka Producer disconnected\n");
 		process.exit();
@@ -36,7 +36,7 @@ export const connectProducer = async () => {
 };
 
 export async function messageProducer(
-	sessionName: string,
+	sessionId: string,
 	chatId: string,
 	messageContent: string,
 ): Promise<void> {
@@ -52,23 +52,23 @@ export async function messageProducer(
 		clearTimeout(messageBuffer[chatId].timer!);
 	}
 
-	const instructions = (await getInstructions(sessionName)) || "";
 	
 	messageBuffer[chatId].timer = setTimeout(async () => {
-		const combinedMessage = messageBuffer[chatId].messages.join("\n");
-		const history = (await getChatHistory(sessionName, chatId)) || "";
-		console.log(`History: ${history}`);
-		await sendMessageToAgent(sessionName, chatId, combinedMessage, history, instructions);
+		const instructions = (await getInstructions(sessionId)) || "";
+		const message = (await getChatHistory(sessionId, chatId)) || "";
+		
+		console.log(`History: ${message}`);
+		await sendMessageToAgent(sessionId, chatId, message, instructions);
+		
 		messageBuffer[chatId].messages = [];
 		messageBuffer[chatId].timer = null;
 	}, 15000); // 15 segundos de intervalo
 }
 
 export async function sendMessageToAgent(
-	sessionName: string,
+	sessionId: string,
 	chatId: string,
 	message: string,
-	history: any,
 	instructions: string,
 ) {
 	try {
@@ -78,11 +78,10 @@ export async function sendMessageToAgent(
 			messages: [
 				{
 					value: JSON.stringify({
-						sessionName,
+						sessionId,
 						chatId,
-						history,
-						instructions,
 						message,
+						instructions,
 					}),
 				},
 			],
@@ -128,7 +127,7 @@ async function getChatHistory(sessionId: string, chatId: string) {
 
 async function getInstructions(sessionId: string) {
 	try {
-		const user = await prisma.users.findUnique({
+		const user = await prisma.session2.findUnique({
 			where: {
 				sessionId: sessionId,
 			},
