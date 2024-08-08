@@ -13,7 +13,8 @@ import { toDataURL } from "qrcode";
 import dotenv from "dotenv";
 import { WAStatus } from "./type";
 import type { WebSocket as WebSocketType } from "ws";
-import { listenMessage } from "./controllers/message/listenMessage";
+import { listenMessage } from "./controllers/listeners/listenMessage";
+import { listenChat } from "./controllers/listeners/listenChat";
 import { logging } from "./kafka/producer";
 
 dotenv.config();
@@ -207,6 +208,13 @@ export async function createSession(options: createSessionOptions) {
 	});
 
 	listenMessage(socket, sessionId);
+	socket.ev.on("chats.upsert", (data: any) => {
+		const chat = data.chats[0];
+		const chatId = chat.jid;
+
+        console.log(`\n\nChat: ${chat}`)
+	});
+	// listenChat(socket, sessionId);
 
 	// Debug events
 	// socket.ev.on("messaging-history.set", (data) => dump("messaging-history.set", data));

@@ -1,7 +1,7 @@
 import { Kafka } from "kafkajs";
 import { logging } from "./producer";
 import { prisma } from "../db";
-import { sendMessage } from "../controllers/message/sendMessage";
+import { sendMessage } from "../controllers/listeners/sendMessage";
 import redisClient from "../redis/client";
 
 const agentURL = process.env.agentURL || "http://localhost:18070";

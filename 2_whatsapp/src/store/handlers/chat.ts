@@ -25,7 +25,7 @@ export default function chatHandler(sessionId: string, event: BaileysEventEmitte
 						data: chats
 							.filter((c) => !existingIds.includes(c.id))
 							.map((c) => ({
-								...transformPrisma(c) as MakeTransformedPrisma<Chat>,
+								...(transformPrisma(c) as MakeTransformedPrisma<Chat>),
 								sessionId,
 							})),
 					})

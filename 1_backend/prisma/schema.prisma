@@ -176,15 +176,20 @@ model Session2 {
   agenda            String
   connectionStatus  String
   createdAt         DateTime @default(now())
-  chats             Chat2[]
 }
 
 model Chat2 {
-  sessionId         String              @unique
-  chatId            String              @unique
-  history           Json                @default("[]")
-  updatedAt         DateTime            @default(now())
-  session           Session2            @relation(fields: [sessionId], references: [sessionId])
+  sessionId                 String
+  chatId                    String
+  contactName               String?
+  botActive                 Boolean     @default(true)
+  botInactiveSince          DateTime?  
+  isGroup                   Boolean?
+  archived                  Boolean?
+  hasDisappearingMessages   Boolean?
+  updatedAt                 DateTime    @default(now())
+
+  @@unique([sessionId, chatId], map: "unique_id_per_chat_id")
 }
 
 model Message2 {
@@ -195,4 +200,19 @@ model Message2 {
   content           String
   type              String
   updatedAt         DateTime @default(now())
+}
+
+model Agendamentos {
+  pkId              Int      @id @default(autoincrement())
+  nome              String
+  contato           String
+  valor             Float
+  profissional      String
+  area              String
+  tipo              String      @default("consulta")
+  status            String      @default("pendente")
+  data              DateTime
+  obs               String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 }

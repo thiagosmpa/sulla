@@ -24,10 +24,10 @@ export default function messageHandler(sessionId: string, event: BaileysEventEmi
 
 				await tx.message.createMany({
 					data: messages.map((message) => ({
-						...transformPrisma(message) as MakeTransformedPrisma<Message>,
+						...(transformPrisma(message) as MakeTransformedPrisma<Message>),
 						remoteJid: message.key.remoteJid!,
 						id: message.key.id!,
-						sessionId
+						sessionId,
 					})),
 				});
 			});
@@ -51,10 +51,10 @@ export default function messageHandler(sessionId: string, event: BaileysEventEmi
 								...data,
 								remoteJid: jid,
 								id: message.key.id!,
-								sessionId
+								sessionId,
 							},
 							update: { ...data },
-							where: { sessionId_remoteJid_id: { remoteJid: jid, id: message.key.id!, sessionId } }
+							where: { sessionId_remoteJid_id: { remoteJid: jid, id: message.key.id!, sessionId } },
 						});
 
 						const chatExists = (await prisma.chat.count({ where: { id: jid, sessionId } })) > 0;
@@ -100,7 +100,7 @@ export default function messageHandler(sessionId: string, event: BaileysEventEmi
 					await tx.message.create({
 						select: { pkId: true },
 						data: {
-							...transformPrisma(data) as MakeTransformedPrisma<Message>,
+							...(transformPrisma(data) as MakeTransformedPrisma<Message>),
 							id: data.key.id!,
 							remoteJid: data.key.remoteJid!,
 							sessionId,

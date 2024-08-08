@@ -1,3 +1,5 @@
 {
-  "/users/list/page": "app/users/list/page.js"
+  "/page": "app/page.js",
+  "/users/list/page": "app/users/list/page.js",
+  "/users/create/page": "app/users/create/page.js"
 }

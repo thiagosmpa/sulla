@@ -3,6 +3,28 @@ import { logging } from "../../kafka/producer";
 import redisClient from "../../redis/client";
 import { prisma } from "../../db";
 
+async function updateChatDB(sessionId: string, chatId: string, ) {
+	try {
+		await prisma.chat2.upsert({
+			where: {
+				sessionId_chatId: {
+					sessionId: sessionId,
+					chatId: chatId,
+				},
+			},
+			create: {
+				sessionId: sessionId,
+				chatId: chatId,
+			},
+			update: {
+				updatedAt: new Date(),
+			},
+		});
+	} catch (error) {
+		console.error("Error during upsert:", error);
+	}
+}
+
 async function updateMessageDB(
 	sessionId: string,
 	from: string,
